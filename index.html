@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>DDR-Oberligisten der 1980er – Interaktive Historien-Grafik (1980/81 bis 2025/26)</title>
+  <title>DDR-Oberligisten der 1980er – Interaktive Historien-Grafik (1980/81 bis heute)</title>
   <style>
     :root {
       --bg-color: #10141D;
@@ -245,6 +245,28 @@
       display: none;
       white-space: nowrap;
     }
+
+    /* GitHub-Link unter der Relegationsbox */
+    .github-box-link {
+      cursor: pointer;
+    }
+
+    .github-box-link rect {
+      transition: stroke 0.2s ease, fill 0.2s ease;
+    }
+
+    .github-box-link:hover rect {
+      stroke: var(--accent-col);
+      fill: #222C3A;
+    }
+
+    .github-box-link text {
+      transition: fill 0.2s ease;
+    }
+
+    .github-box-link:hover text {
+      fill: #F8C471;
+    }
   </style>
 </head>
 <body>
@@ -254,8 +276,8 @@
 
   <!-- Permanenter Header oben -->
   <header id="fixed-header">
-    <h1>Erfolgs- und Misserfolgspfade aller 22 DDR-Oberligisten der 1980er-Jahre (1980/81 bis 2025/26)</h1>
-    <p>Exakte Tabellenplätze in DDR-Oberliga, DDR-Liga sowie 1. bis 4. Liga Gesamtdeutschlands | → Umbenennungen | ⚡ Insolvenzen</p>
+    <h1>Erfolgs- und Misserfolgspfade aller 22 DDR-Oberligisten der 1980er-Jahre von 1980/81 bis heute</h1>
+    <p>Platzierungen in DDR-Oberliga, DDR-Liga sowie 1. bis 4. Ligenebene in der BRD | → Umbenennungen | ⚡ Insolvenzen</p>
   </header>
 
   <!-- Zoom-Buttons rechts oben -->
@@ -566,6 +588,43 @@
           bgLayer.appendChild(itemG);
         });
       });
+
+      // GitHub-Link ganz unten im DDR-Abschnitt, direkt über den Saisondaten
+      const ghLink = createSvgEl("a", {
+        href: "https://github.com/8192K/ddr-oberliga-teams-graph",
+        target: "_blank",
+        rel: "noopener noreferrer",
+        class: "github-box-link"
+      });
+      ghLink.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", "https://github.com/8192K/ddr-oberliga-teams-graph");
+
+      const cx = ux(ddrCenterX);
+      const cy = uy(168.2); // Direkt über den Jahreszahlen am unteren Rand
+      const btnW = 430;     // Feste Pixelbreite für gleichmäßige Seitenabstände
+      const btnH = 30;      // Feste Pixelhöhe
+
+      ghLink.appendChild(createSvgEl("rect", {
+        x: cx - btnW * 0.5,
+        y: cy - btnH * 0.55,
+        width: btnW,
+        height: btnH,
+        fill: "#1A222D",
+        stroke: "#34495E",
+        "stroke-width": 1.2,
+        rx: 6
+      }));
+
+      ghLink.appendChild(createSvgEl("text", {
+        x: cx,
+        y: cy,
+        fill: "#85C1E9",
+        "font-size": "11.5",
+        "font-weight": "bold",
+        "text-anchor": "middle",
+        "dominant-baseline": "central" // Sorgt für absolut gleichmäßigen Rand oben/unten
+      }, "↗ Code & Daten auf GitHub: 8192K/ddr-oberliga-teams-graph"));
+
+      bgLayer.appendChild(ghLink);
 
       // 3. Gesamtdeutsche Liga-Bänder ab 1991/92
       const gerBands = [
