@@ -1,4 +1,4 @@
-[https://8192k.github.io/ddr-oberliga-teams-graph/]
+https://8192k.github.io/ddr-oberliga-teams-graph/
 
 --------------------
 
