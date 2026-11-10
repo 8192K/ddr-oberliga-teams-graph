@@ -44,29 +44,39 @@
       cursor: grabbing;
     }
 
+    /* KEIN will-change: transform auf dem riesigen SVG, um GPU-Tile-Eviction (Verschwinden/Flackern) in Chrome/Android zu verhindern */
     #chart-svg {
       position: absolute;
       top: 0;
       left: 0;
       transform-origin: 0 0;
-      will-change: transform;
       overflow: visible;
     }
 
-    /* Visuelle Ebene der Vereine (pointer-events: none, damit DOM-Sortierung niemals Klicks/Hover stört) */
-    #layer-clubs-visual {
+    /* Visuelle Ebenen der Vereine (pointer-events: none) */
+    #layer-clubs-visual,
+    #layer-clubs-active {
       pointer-events: none;
-    }
-
-    .club-group {
-      transition: opacity 0.18s ease;
     }
 
     .club-main-path {
       fill: none;
       stroke-linecap: round;
       stroke-linejoin: round;
-      transition: stroke-width 0.15s ease, filter 0.15s ease;
+    }
+
+    /* Statische Overlay-Klone für aktive Vereine (kein appendChild nötig!) */
+    .club-active-clone {
+      display: none;
+    }
+
+    .club-active-clone.is-active {
+      display: inline;
+    }
+
+    .club-active-clone .club-main-path {
+      stroke-width: 5.8px !important;
+      stroke-opacity: 1.0 !important;
     }
 
     /* Statische Interaktions-Ebene für Maus & Touch */
@@ -81,29 +91,47 @@
       pointer-events: stroke;
     }
 
-    /* Dimming & Highlighting */
-    svg.has-highlight .club-group {
-      opacity: 0.38;
+    /* Dimming & Highlighting OHNE Gruppen-Opacity (verhindert 23 Offscreen-SaveLayer-Buffer in Chrome/Skia) */
+    svg.has-highlight #layer-clubs-visual .club-group.is-active {
+      visibility: hidden;
     }
 
-    svg.has-highlight .club-group.is-active {
-      opacity: 1.0 !important;
+    svg.has-highlight #layer-clubs-visual .club-group path,
+    svg.has-highlight #layer-clubs-visual .club-group line {
+      stroke-opacity: 0.28;
     }
 
-    svg.has-highlight .club-group.is-active .club-main-path {
-      stroke-width: 5.5px !important;
-      filter: drop-shadow(0px 0px 5px rgba(255, 255, 255, 0.7));
+    svg.has-highlight #layer-clubs-visual .club-group circle {
+      fill-opacity: 0.28;
+      stroke-opacity: 0.28;
     }
 
-    svg.has-highlight .rename-badge,
-    svg.has-highlight .insolvency-badge {
-      opacity: 0.38;
-      transition: opacity 0.18s ease;
+    svg.has-highlight #layer-clubs-visual .club-group text {
+      fill-opacity: 0.28;
     }
 
-    svg.has-highlight .rename-badge.is-active,
-    svg.has-highlight .insolvency-badge.is-active {
-      opacity: 1.0 !important;
+    svg.has-highlight .rename-badge line,
+    svg.has-highlight .rename-badge rect,
+    svg.has-highlight .insolvency-badge circle {
+      fill-opacity: 0.25;
+      stroke-opacity: 0.28;
+    }
+
+    svg.has-highlight .rename-badge text,
+    svg.has-highlight .insolvency-badge text {
+      fill-opacity: 0.28;
+    }
+
+    svg.has-highlight .rename-badge.is-active line,
+    svg.has-highlight .rename-badge.is-active rect,
+    svg.has-highlight .insolvency-badge.is-active circle {
+      fill-opacity: 0.95 !important;
+      stroke-opacity: 1.0 !important;
+    }
+
+    svg.has-highlight .rename-badge.is-active text,
+    svg.has-highlight .insolvency-badge.is-active text {
+      fill-opacity: 1.0 !important;
     }
 
     /* Links am Bildschirmrand mitwandernde Labels für angepinnte Teams */
@@ -136,7 +164,6 @@
       white-space: nowrap;
       pointer-events: auto;
       cursor: pointer;
-      transition: transform 0.12s ease;
     }
 
     .pinned-floating-label:hover {
@@ -343,17 +370,9 @@
       cursor: pointer;
     }
 
-    .github-box-link rect {
-      transition: stroke 0.2s ease, fill 0.2s ease;
-    }
-
     .github-box-link:hover rect {
       stroke: var(--accent-col);
       fill: #222C3A;
-    }
-
-    .github-box-link text {
-      transition: fill 0.2s ease;
     }
 
     .github-box-link:hover text {
@@ -432,7 +451,6 @@
     RAW_CLUBS.forEach(rc => {
       CLUB_KEYS.push(rc.id);
 
-      // Umbenennungen auf Saison-Index mappen
       const renamesByIdx = {};
       if (rc.renames) {
         Object.entries(rc.renames).forEach(([sKey, label]) => {
@@ -441,12 +459,10 @@
         });
       }
 
-      // Insolvenzen auf Saison-Index mappen
       const insolvenciesByIdx = (rc.insolvencies || [])
         .map(resolveSeasonIndex)
         .filter(idx => idx >= 0);
 
-      // Fusion (mergedInto) auf Saison-Index mappen
       let mergedIntoObj = null;
       if (rc.mergedInto) {
         const targetIdx = rc.mergedInto.season !== undefined
@@ -458,7 +474,6 @@
         };
       }
 
-      // Historie (Array aus JSON-Objekten { season, tier, rank, size? }) auf alle Saisons mappen
       const historyBySeasonId = {};
       if (Array.isArray(rc.history)) {
         rc.history.forEach(item => {
@@ -601,7 +616,7 @@
     }
 
     // ============================================================================
-    // 3. SVG-GRAFIK GENERIEREN (GETRENNTE VISUELLE & INTERAKTIVE EBENEN)
+    // 3. SVG-GRAFIK GENERIEREN (100% STATISCHER DOM OHNE APPENDCHILD / FILTER)
     // ============================================================================
     const svg = document.getElementById("chart-svg");
     const NS = "http://www.w3.org/2000/svg";
@@ -631,22 +646,41 @@
       return el;
     }
 
+    let hoverClearTimer = null;
+
     // Universelle Event-Verknüpfung für Maus (PC) und Touch (Smartphone/Tablet)
     function bindClubInteraction(el, cid) {
       el.setAttribute("data-cid", cid);
       el.addEventListener("mouseenter", () => {
         if (Date.now() - lastTouchTime < 800) return;
+        if (hoverClearTimer) {
+          clearTimeout(hoverClearTimer);
+          hoverClearTimer = null;
+        }
         setHoveredClub(cid);
       });
       el.addEventListener("mouseleave", () => {
         if (Date.now() - lastTouchTime < 800) return;
-        setHoveredClub(null);
+        if (hoverClearTimer) clearTimeout(hoverClearTimer);
+        hoverClearTimer = setTimeout(() => {
+          setHoveredClub(null);
+        }, 20);
       });
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         if (Date.now() - lastTouchPinTime < 450) return;
         if (!wasDragged) togglePinClub(cid);
       });
+    }
+
+    // Direkte Element-Referenzen für schnelles, flackerfreies Umschalten ohne DOM-Suche
+    const VISUAL_GROUPS_BY_CID = {};
+    const ACTIVE_CLONES_BY_CID = {};
+    const BADGES_BY_CID = {};
+
+    function registerBadgeRef(cid, el) {
+      if (!BADGES_BY_CID[cid]) BADGES_BY_CID[cid] = [];
+      BADGES_BY_CID[cid].push(el);
     }
 
     function buildChartSVG() {
@@ -656,11 +690,13 @@
 
       const bgLayer = createSvgEl("g", { id: "layer-bg" });
       const clubsVisualLayer = createSvgEl("g", { id: "layer-clubs-visual" });
+      const clubsActiveLayer = createSvgEl("g", { id: "layer-clubs-active" });
       const clubsHitLayer = createSvgEl("g", { id: "layer-clubs-hit" });
       const badgesLayer = createSvgEl("g", { id: "layer-badges" });
 
       svg.appendChild(bgLayer);
       svg.appendChild(clubsVisualLayer);
+      svg.appendChild(clubsActiveLayer);
       svg.appendChild(clubsHitLayer);
       svg.appendChild(badgesLayer);
 
@@ -831,7 +867,7 @@
         x: ux(xSplitCenter), y: uy(-3.8), fill: "#F8C471", "font-size": "13", "font-weight": "bold", "text-anchor": "middle"
       }, "Integration in DFB-Ligen 1991"));
 
-      // 4. Vereinsgruppen: Visuelle Darstellung (clubsVisualLayer) & Statische Hit-Targets (clubsHitLayer)
+      // 4. Vereinsgruppen: Visuelle Darstellung, statische Aktiv-Klone & Hit-Targets
       const leftTargets = {};
       const rightTargets = {};
       CLUB_KEYS.forEach(cid => {
@@ -855,13 +891,11 @@
         const color = cdata.color;
         const isDotted = cdata.linestyle === "dotted" || cdata.linestyle === ":";
 
-        // Visuelle Gruppe (kann frei nach vorne sortiert werden, da pointer-events: none)
         const clubVisualG = createSvgEl("g", {
           class: "club-group",
           "data-cid": cid
         });
 
-        // Statische Hit-Gruppe (bleibt immer an derselben DOM-Stelle -> 100% zuverlässige Klick-&-Hover-Events)
         const clubHitG = createSvgEl("g", {
           class: "club-hit-group",
           "data-cid": cid
@@ -1008,6 +1042,7 @@
                 x: xMid, y: yMid + 4.5, "font-size": "13.5", "text-anchor": "middle"
               }, "⚡"));
               bindClubInteraction(insG, cid);
+              registerBadgeRef(cid, insG);
               badgesLayer.appendChild(insG);
             }
           }
@@ -1029,6 +1064,7 @@
             x: sx - 15, y: sy - 50, fill: "#E0E0E0", "font-size": "11", "font-weight": "bold", "text-anchor": "middle"
           }, "★ Gründung RB Leipzig (2009/10)"));
           bindClubInteraction(rblBadge, "RBL");
+          registerBadgeRef("RBL", rblBadge);
           badgesLayer.appendChild(rblBadge);
         }
 
@@ -1083,8 +1119,16 @@
           }, cdata.rightName));
         }
 
+        // Statischer Klon für die Vordergrund-Ebene (#layer-clubs-active), damit nie appendChild aufgerufen werden muss
+        const clubActiveClone = clubVisualG.cloneNode(true);
+        clubActiveClone.setAttribute("class", "club-active-clone");
+
+        VISUAL_GROUPS_BY_CID[cid] = clubVisualG;
+        ACTIVE_CLONES_BY_CID[cid] = clubActiveClone;
+
         bindClubInteraction(clubHitG, cid);
         clubsVisualLayer.appendChild(clubVisualG);
+        clubsActiveLayer.appendChild(clubActiveClone);
         clubsHitLayer.appendChild(clubHitG);
       });
 
@@ -1108,6 +1152,7 @@
         }, ann.text));
 
         bindClubInteraction(g, ann.cid);
+        registerBadgeRef(ann.cid, g);
         badgesLayer.appendChild(g);
       });
     }
@@ -1154,7 +1199,6 @@
       const existingIdx = pinnedClubs.indexOf(primaryCid);
       if (existingIdx !== -1) {
         pinnedClubs.splice(existingIdx, 1);
-        // Sofort auch aus hoveredClub löschen, damit die Abwahl auf allen Geräten unmittelbar sichtbar ist
         if (hoveredClub === primaryCid) {
           hoveredClub = null;
         }
@@ -1178,19 +1222,18 @@
       const hasAnyActive = activeSet.size > 0;
       svg.classList.toggle("has-highlight", hasAnyActive);
 
-      // Nur die rein visuellen Gruppen (pointer-events: none) werden nach vorne sortiert!
-      document.querySelectorAll("#layer-clubs-visual .club-group").forEach(el => {
-        const cid = el.getAttribute("data-cid");
+      // Reines Umschalten von CSS-Klassen ohne jegliche DOM-Umhängung (appendChild entfällt komplett!)
+      CLUB_KEYS.forEach(cid => {
         const isActive = activeSet.has(cid);
-        el.classList.toggle("is-active", isActive);
-        if (isActive) {
-          el.parentNode.appendChild(el);
+        if (VISUAL_GROUPS_BY_CID[cid]) {
+          VISUAL_GROUPS_BY_CID[cid].classList.toggle("is-active", isActive);
         }
-      });
-
-      document.querySelectorAll(".rename-badge, .insolvency-badge").forEach(el => {
-        const cid = el.getAttribute("data-cid");
-        el.classList.toggle("is-active", activeSet.has(cid));
+        if (ACTIVE_CLONES_BY_CID[cid]) {
+          ACTIVE_CLONES_BY_CID[cid].classList.toggle("is-active", isActive);
+        }
+        if (BADGES_BY_CID[cid]) {
+          BADGES_BY_CID[cid].forEach(b => b.classList.toggle("is-active", isActive));
+        }
       });
     }
 
@@ -1220,7 +1263,6 @@
       return ys[firstValid];
     }
 
-    // Erstellt die DOM-Elemente der gepinnten Labels NUR bei Änderungen an pinnedClubs
     function renderPinnedLeftLabels() {
       const rail = document.getElementById("pinned-left-rail");
       rail.innerHTML = "";
@@ -1248,11 +1290,18 @@
 
         badge.addEventListener("mouseenter", () => {
           if (Date.now() - lastTouchTime < 800) return;
+          if (hoverClearTimer) {
+            clearTimeout(hoverClearTimer);
+            hoverClearTimer = null;
+          }
           setHoveredClub(cid);
         });
         badge.addEventListener("mouseleave", () => {
           if (Date.now() - lastTouchTime < 800) return;
-          setHoveredClub(null);
+          if (hoverClearTimer) clearTimeout(hoverClearTimer);
+          hoverClearTimer = setTimeout(() => {
+            setHoveredClub(null);
+          }, 20);
         });
         badge.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -1273,7 +1322,6 @@
       positionPinnedLeftLabels();
     }
 
-    // Aktualisiert beim Verschieben/Zoomen nur die Y-Positionen der bestehenden Label-Elemente
     function positionPinnedLeftLabels() {
       if (pinnedClubs.length === 0) return;
       const rail = document.getElementById("pinned-left-rail");
@@ -1378,7 +1426,8 @@
 
     function applyTransform() {
       clampPan();
-      svg.style.transform = `translate3d(${panX}px, ${panY}px, 0) scale(${scale})`;
+      // 2D-Transform statt translate3d verhindert GPU-Tile-Thrashing in Chrome/Opera
+      svg.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
       positionPinnedLeftLabels();
     }
 
@@ -1469,7 +1518,6 @@
       if (touches.length === 1 && prevTouches.length === 1) {
         const totalMove = Math.hypot(touches[0].clientX - touchStartX, touches[0].clientY - touchStartY);
         if (!wasDragged && totalMove < 8) {
-          // Innerhalb von 8px Finger-Toleranz noch kein Drag -> erlaubt sauberes Antippen (Tap)
           return;
         }
         wasDragged = true;
