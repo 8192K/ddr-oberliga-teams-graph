@@ -16,6 +16,7 @@
       box-sizing: border-box;
       user-select: none;
       -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
 
     html, body {
@@ -52,17 +53,13 @@
       overflow: visible;
     }
 
-    /* Interaktive SVG-Gruppen für Vereine */
-    .club-group {
-      cursor: pointer;
-      transition: opacity 0.18s ease;
+    /* Visuelle Ebene der Vereine (pointer-events: none, damit DOM-Sortierung niemals Klicks/Hover stört) */
+    #layer-clubs-visual {
+      pointer-events: none;
     }
 
-    .club-hit-path {
-      fill: none;
-      stroke: transparent;
-      stroke-width: 18px;
-      pointer-events: stroke;
+    .club-group {
+      transition: opacity 0.18s ease;
     }
 
     .club-main-path {
@@ -70,6 +67,18 @@
       stroke-linecap: round;
       stroke-linejoin: round;
       transition: stroke-width 0.15s ease, filter 0.15s ease;
+    }
+
+    /* Statische Interaktions-Ebene für Maus & Touch */
+    .club-hit-group {
+      cursor: pointer;
+    }
+
+    .club-hit-path {
+      fill: none;
+      stroke: transparent;
+      stroke-width: 22px;
+      pointer-events: stroke;
     }
 
     /* Dimming & Highlighting */
@@ -116,6 +125,7 @@
       align-items: center;
       gap: 8px;
       padding: 6px 12px;
+      max-width: calc(100vw - 28px);
       border-radius: 6px;
       background: rgba(16, 20, 29, 0.94);
       border: 2px solid #fff;
@@ -126,11 +136,11 @@
       white-space: nowrap;
       pointer-events: auto;
       cursor: pointer;
-      transition: top 0.04s linear, transform 0.12s ease;
+      transition: transform 0.12s ease;
     }
 
     .pinned-floating-label:hover {
-      transform: translateY(-50%) scale(1.04);
+      transform: translateY(-50%) scale(1.03);
     }
 
     .pinned-floating-label .pin-Dot {
@@ -146,6 +156,13 @@
       border-radius: 4px;
       background: rgba(255, 255, 255, 0.15);
       color: #F8C471;
+      flex-shrink: 0;
+    }
+
+    .pinned-floating-label .pin-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .pinned-floating-label .pin-close {
@@ -153,6 +170,8 @@
       font-size: 14px;
       color: #BDC3C7;
       line-height: 1;
+      flex-shrink: 0;
+      padding: 2px 4px;
     }
 
     /* Permanenter Header für Überschrift & Unterüberschrift */
@@ -185,6 +204,10 @@
       overflow: hidden;
       text-overflow: ellipsis;
       max-width: 100%;
+    }
+
+    #fixed-header .title-short {
+      display: none;
     }
 
     #fixed-header p {
@@ -228,6 +251,75 @@
     .hud-btn:hover {
       background: #2F4259;
       border-color: #85C1E9;
+    }
+
+    /* Mobile & kleine Bildschirme: Linksbündiger Kurz-Header ohne Unterüberschrift & kompakte Labels */
+    @media (max-width: 768px) {
+      #fixed-header {
+        height: 50px;
+        align-items: flex-start;
+        text-align: left;
+        padding: 0 90px 0 14px;
+      }
+
+      #fixed-header h1 {
+        font-size: 14.5px;
+      }
+
+      #fixed-header .title-full {
+        display: none;
+      }
+
+      #fixed-header .title-short {
+        display: inline;
+      }
+
+      #fixed-header p {
+        display: none;
+      }
+
+      #hud-bar {
+        top: 9px;
+        right: 10px;
+        gap: 5px;
+      }
+
+      .hud-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 18px;
+      }
+
+      .pinned-floating-label {
+        left: 8px;
+        padding: 4px 8px;
+        gap: 5px;
+        font-size: 11px;
+        max-width: min(210px, calc(100vw - 20px));
+      }
+
+      .pinned-floating-label .pin-Dot {
+        width: 8px;
+        height: 8px;
+      }
+
+      .pinned-floating-label .pin-order {
+        font-size: 9.5px;
+        padding: 1px 4px;
+      }
+
+      .pinned-floating-label .pin-close {
+        font-size: 12px;
+        margin-left: 2px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .pinned-floating-label {
+        max-width: min(170px, calc(100vw - 16px));
+        font-size: 10.5px;
+        padding: 3px 7px;
+      }
     }
 
     /* Kurz-Tooltip beim Hover über einen Datenpunkt */
@@ -276,7 +368,10 @@
 
   <!-- Permanenter Header oben -->
   <header id="fixed-header">
-    <h1>Erfolgs- und Misserfolgspfade aller 22 DDR-Oberligisten der 1980er-Jahre von 1980/81 bis heute</h1>
+    <h1>
+      <span class="title-full">Erfolgs- und Misserfolgspfade aller 22 DDR-Oberligisten der 1980er-Jahre von 1980/81 bis heute</span>
+      <span class="title-short">DDR-Oberliga-Teams von 1980/81 bis heute</span>
+    </h1>
     <p>Platzierungen in DDR-Oberliga, DDR-Liga sowie 1. bis 4. Ligenebene in der BRD | → Umbenennungen | ⚡ Insolvenzen (gestrichelt)</p>
   </header>
 
@@ -375,7 +470,7 @@
 
       const normalizedHistory = SEASON_IDS.map(sId => {
         const item = historyBySeasonId[sId];
-        if (!item || !item.tier || item.tier === "NONE") {
+        if (!item || !item.tier || item.tier === "NONE" || item.tier === "TODO") {
           return { season: sId, tier: "NONE", rank: null, size: null };
         }
         const tier = item.tier;
@@ -411,7 +506,7 @@
       const { tier, rank, size } = entry;
       const jitter = ((clubIdx - totalClubs / 2.0) / totalClubs) * 4.5;
 
-      if (tier === "NONE") return null;
+      if (tier === "NONE" || tier === "TODO") return null;
       if (tier === "OL") return 2.0 + ((rank - 1) / (size - 1)) * 48.0;
       if (tier === "DDR_LIGA") return 56.0 + ((rank - 1) / Math.max(size - 1, 1)) * 34.0;
       if (tier === "DDR_BEZ") return 96.5 + jitter * 0.45;
@@ -427,7 +522,7 @@
       }
       if (tier === "L5") return 147.5 + jitter * 0.95;
       if (tier === "L6") return 157.5 + jitter * 0.95;
-      if (tier === "L7") return 167.5 + jitter * 0.95;
+      if (tier === "L7" || tier === "L8" || tier === "L9" || tier === "L10") return 167.5 + jitter * 0.95;
       return null;
     }
 
@@ -478,6 +573,8 @@
     // Alle X/Y-Koordinaten der 23 Vereine berechnen (inkl. Nebeneinander-Versatz bei gleichem Rang)
     const ALL_XS = {};
     const ALL_YS = {};
+    const rankedTiers = new Set(["OL", "DDR_LIGA", "BL1", "BL2", "L3", "L4"]);
+
     CLUB_KEYS.forEach((cid, idx) => {
       ALL_XS[cid] = [...X_COORDS];
       ALL_YS[cid] = CLUBS[cid].history.map(entry => computeRawY(entry, idx, CLUB_KEYS.length));
@@ -487,7 +584,7 @@
       const occupied = {};
       CLUB_KEYS.forEach(cid => {
         const { tier, rank } = CLUBS[cid].history[sIdx];
-        if (rank !== null && tier !== "NONE") {
+        if (rank !== null && rankedTiers.has(tier)) {
           const key = `${tier}_${rank}`;
           if (!occupied[key]) occupied[key] = [];
           occupied[key].push(cid);
@@ -504,7 +601,7 @@
     }
 
     // ============================================================================
-    // 3. SVG-GRAFIK GENERIEREN
+    // 3. SVG-GRAFIK GENERIEREN (GETRENNTE VISUELLE & INTERAKTIVE EBENEN)
     // ============================================================================
     const svg = document.getElementById("chart-svg");
     const NS = "http://www.w3.org/2000/svg";
@@ -534,16 +631,37 @@
       return el;
     }
 
+    // Universelle Event-Verknüpfung für Maus (PC) und Touch (Smartphone/Tablet)
+    function bindClubInteraction(el, cid) {
+      el.setAttribute("data-cid", cid);
+      el.addEventListener("mouseenter", () => {
+        if (Date.now() - lastTouchTime < 800) return;
+        setHoveredClub(cid);
+      });
+      el.addEventListener("mouseleave", () => {
+        if (Date.now() - lastTouchTime < 800) return;
+        setHoveredClub(null);
+      });
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (Date.now() - lastTouchPinTime < 450) return;
+        if (!wasDragged) togglePinClub(cid);
+      });
+    }
+
     function buildChartSVG() {
       const xEndDdr = X_COORDS[10] + 0.80;
       const xGerStart = X_COORDS[11] - 0.80;
       const xGerEnd = X_COORDS[X_COORDS.length - 1] + 0.65;
 
       const bgLayer = createSvgEl("g", { id: "layer-bg" });
-      const clubsLayer = createSvgEl("g", { id: "layer-clubs" });
+      const clubsVisualLayer = createSvgEl("g", { id: "layer-clubs-visual" });
+      const clubsHitLayer = createSvgEl("g", { id: "layer-clubs-hit" });
       const badgesLayer = createSvgEl("g", { id: "layer-badges" });
+
       svg.appendChild(bgLayer);
-      svg.appendChild(clubsLayer);
+      svg.appendChild(clubsVisualLayer);
+      svg.appendChild(clubsHitLayer);
       svg.appendChild(badgesLayer);
 
       // 1. DDR-Bänder
@@ -569,7 +687,7 @@
         x: ux(X_COORDS[5]), y: uy(95.3), fill: "#95A5A6", "font-size": "12", "text-anchor": "middle"
       }, "DDR-Bezirksliga / 1990/91 Landesliga (3. Ebene)"));
 
-      // 2. Kompakte Infobox Relegation 1990/91 mittig unter dem DDR-Abschnitt (aus RELEGATION_1991 in data.js)
+      // 2. Kompakte Infobox Relegation 1990/91 mittig unter dem DDR-Abschnitt
       const ddrCenterX = 0.5 * (-0.65 + xEndDdr);
       const boxW = 10.6;
       const rx0 = ddrCenterX - 0.5 * boxW;
@@ -606,9 +724,7 @@
           const cy = uy(ry);
           const cid = t.clubId;
           const itemG = createSvgEl("g", { style: "cursor:pointer" });
-          itemG.addEventListener("mouseenter", () => setHoveredClub(cid));
-          itemG.addEventListener("mouseleave", () => setHoveredClub(null));
-          itemG.addEventListener("click", (e) => { e.stopPropagation(); togglePinClub(cid); });
+          bindClubInteraction(itemG, cid);
 
           itemG.appendChild(createSvgEl("circle", {
             cx, cy, r: 9.0, fill: CLUBS[cid].color, stroke: "#10141D", "stroke-width": 1.4
@@ -715,7 +831,7 @@
         x: ux(xSplitCenter), y: uy(-3.8), fill: "#F8C471", "font-size": "13", "font-weight": "bold", "text-anchor": "middle"
       }, "Integration in DFB-Ligen 1991"));
 
-      // 4. Vereinsgruppen (Pfade, Punkte, Links-/Rechts-Namen)
+      // 4. Vereinsgruppen: Visuelle Darstellung (clubsVisualLayer) & Statische Hit-Targets (clubsHitLayer)
       const leftTargets = {};
       const rightTargets = {};
       CLUB_KEYS.forEach(cid => {
@@ -731,7 +847,6 @@
       const xRightText = xRightData + 1.45;
 
       const renameAnnotations = [];
-      const rankedTiers = new Set(["OL", "DDR_LIGA", "BL1", "BL2", "L3", "L4"]);
 
       CLUB_KEYS.forEach(cid => {
         const cdata = CLUBS[cid];
@@ -740,12 +855,18 @@
         const color = cdata.color;
         const isDotted = cdata.linestyle === "dotted" || cdata.linestyle === ":";
 
-        const clubG = createSvgEl("g", {
+        // Visuelle Gruppe (kann frei nach vorne sortiert werden, da pointer-events: none)
+        const clubVisualG = createSvgEl("g", {
           class: "club-group",
           "data-cid": cid
         });
 
-        // Alle Stützpunkte für den unsichtbaren Hit-Pfad sowie reguläre vs. Insolvenz-Segmente aufbauen
+        // Statische Hit-Gruppe (bleibt immer an derselben DOM-Stelle -> 100% zuverlässige Klick-&-Hover-Events)
+        const clubHitG = createSvgEl("g", {
+          class: "club-hit-group",
+          "data-cid": cid
+        });
+
         const validPts = [];
         const normalSegments = [];
         const insolvencySegments = [];
@@ -789,14 +910,13 @@
 
         const hitDStr = validPts.map((pt, idx) => `${idx === 0 ? "M" : "L"} ${pt[0].toFixed(1)} ${pt[1].toFixed(1)}`).join(" ");
 
-        // Unsichtbarer breiter Fangpfad für müheloses Hover & Klick
-        clubG.appendChild(createSvgEl("path", {
+        // Unsichtbarer breiter Fangpfad in der Hit-Ebene
+        clubHitG.appendChild(createSvgEl("path", {
           d: hitDStr,
-          class: "club-hit-path",
-          "stroke-width": 18
+          class: "club-hit-path"
         }));
 
-        // Sichtbarer Hauptpfad (reguläre Segmente: durchgezogen oder bei RB Leipzig gepunktet)
+        // Sichtbarer Hauptpfad in der visuellen Ebene
         if (normalSegments.length > 0) {
           const mainPath = createSvgEl("path", {
             d: normalSegments.join(" "),
@@ -808,7 +928,7 @@
           if (isDotted) {
             mainPath.setAttribute("stroke-dasharray", "1.5, 6.5");
           }
-          clubG.appendChild(mainPath);
+          clubVisualG.appendChild(mainPath);
         }
 
         // Gestrichelte Verbindungslinien zwischen Saisons mit Insolvenz
@@ -821,38 +941,47 @@
             "stroke-opacity": 0.94,
             "stroke-dasharray": "9, 6"
           });
-          clubG.appendChild(insPath);
+          clubVisualG.appendChild(insPath);
         }
 
         // Datenpunkte & Platzierungszahlen
         for (let sIdx = 0; sIdx < SEASON_IDS.length; sIdx++) {
           const { tier, rank } = cdata.history[sIdx];
-          if (tier === "NONE") continue;
+          if (tier === "NONE" || ys[sIdx] === null) continue;
           const cx = ux(xs[sIdx]);
           const cy = uy(ys[sIdx]);
 
-          const nodeG = createSvgEl("g");
           if (rankedTiers.has(tier) && rank !== null) {
             const edgeCol = (cid === "RBL") ? "#37474F" : "#10141D";
             const txtCol = (cid === "RBL") ? "#10141D" : "#FFFFFF";
-            nodeG.appendChild(createSvgEl("circle", {
+            clubVisualG.appendChild(createSvgEl("circle", {
               cx, cy, r: 9.2, fill: color, stroke: edgeCol, "stroke-width": 1.5
             }));
-            nodeG.appendChild(createSvgEl("text", {
+            clubVisualG.appendChild(createSvgEl("text", {
               x: cx, y: cy + 3.3, fill: txtCol, "font-size": "9.8", "font-weight": "bold", "text-anchor": "middle"
             }, String(rank)));
           } else {
-            nodeG.appendChild(createSvgEl("circle", {
+            clubVisualG.appendChild(createSvgEl("circle", {
               cx, cy, r: 4.2, fill: color, "fill-opacity": 0.9
             }));
           }
 
-          nodeG.addEventListener("mouseenter", (e) => {
+          // Unsichtbarer Hit-Kreis für Saison-Tooltip in der Hit-Ebene
+          const hitNode = createSvgEl("circle", {
+            cx, cy, r: 11.0, fill: "transparent"
+          });
+          hitNode.addEventListener("mouseenter", (e) => {
+            if (Date.now() - lastTouchTime < 800) return;
             showNodeTooltip(e, cdata.name, SEASON_IDS[sIdx], tier, rank, color);
           });
-          nodeG.addEventListener("mousemove", moveNodeTooltip);
-          nodeG.addEventListener("mouseleave", hideNodeTooltip);
-          clubG.appendChild(nodeG);
+          hitNode.addEventListener("mousemove", (e) => {
+            if (Date.now() - lastTouchTime < 800) return;
+            moveNodeTooltip(e);
+          });
+          hitNode.addEventListener("mouseleave", () => {
+            hideNodeTooltip();
+          });
+          clubHitG.appendChild(hitNode);
 
           // Umbenennungen vormerken
           if (cdata.renames[sIdx]) {
@@ -868,24 +997,27 @@
           // Insolvenz-Blitze
           if (insolvencySet.has(sIdx)) {
             const nextIdx = Math.min(sIdx + 1, SEASON_IDS.length - 1);
-            const xMid = ux(0.5 * (xs[sIdx] + xs[nextIdx]));
-            const yMid = uy(0.5 * (ys[sIdx] + ys[nextIdx]));
-            const insG = createSvgEl("g", { class: "insolvency-badge", "data-cid": cid });
-            insG.appendChild(createSvgEl("circle", {
-              cx: xMid, cy: yMid, r: 10.5, fill: "#880E4F", stroke: "#FFEA00", "stroke-width": 1.4
-            }));
-            insG.appendChild(createSvgEl("text", {
-              x: xMid, y: yMid + 4.5, "font-size": "13.5", "text-anchor": "middle"
-            }, "⚡"));
-            badgesLayer.appendChild(insG);
+            if (ys[nextIdx] !== null) {
+              const xMid = ux(0.5 * (xs[sIdx] + xs[nextIdx]));
+              const yMid = uy(0.5 * (ys[sIdx] + ys[nextIdx]));
+              const insG = createSvgEl("g", { class: "insolvency-badge", "data-cid": cid, style: "cursor:pointer" });
+              insG.appendChild(createSvgEl("circle", {
+                cx: xMid, cy: yMid, r: 10.5, fill: "#880E4F", stroke: "#FFEA00", "stroke-width": 1.4
+              }));
+              insG.appendChild(createSvgEl("text", {
+                x: xMid, y: yMid + 4.5, "font-size": "13.5", "text-anchor": "middle"
+              }, "⚡"));
+              bindClubInteraction(insG, cid);
+              badgesLayer.appendChild(insG);
+            }
           }
         }
 
         // Start-Banner für RB Leipzig (2009/10) in Grau
-        if (cid === "RBL") {
+        if (cid === "RBL" && ys[29] !== null) {
           const sx = ux(xs[29]);
           const sy = uy(ys[29]);
-          const rblBadge = createSvgEl("g", { class: "rename-badge", "data-cid": "RBL" });
+          const rblBadge = createSvgEl("g", { class: "rename-badge", "data-cid": "RBL", style: "cursor:pointer" });
           rblBadge.appendChild(createSvgEl("line", {
             x1: sx - 15, y1: sy - 42, x2: sx, y2: sy - 6, stroke: color, "stroke-width": 1.5, "stroke-dasharray": "2,4"
           }));
@@ -896,6 +1028,7 @@
           rblBadge.appendChild(createSvgEl("text", {
             x: sx - 15, y: sy - 50, fill: "#E0E0E0", "font-size": "11", "font-weight": "bold", "text-anchor": "middle"
           }, "★ Gründung RB Leipzig (2009/10)"));
+          bindClubInteraction(rblBadge, "RBL");
           badgesLayer.appendChild(rblBadge);
         }
 
@@ -905,11 +1038,20 @@
           const x0Data = xs[0];
           const y0Lbl = leftLabelYs[cid];
           const dLeadL = `M ${ux(x0Data - 0.18)} ${uy(y0Data)} L ${ux(xLeftData - 0.90)} ${uy(y0Lbl)} L ${ux(xLeftText + 0.1)} ${uy(y0Lbl)}`;
-          clubG.appendChild(createSvgEl("path", {
+          clubVisualG.appendChild(createSvgEl("path", {
             d: dLeadL, fill: "none", stroke: color, "stroke-width": 1.4, "stroke-opacity": 0.75
           }));
-          clubG.appendChild(createSvgEl("text", {
+          clubVisualG.appendChild(createSvgEl("text", {
             x: ux(xLeftText), y: uy(y0Lbl) + 4.0, fill: color,
+            "font-size": "13", "font-weight": "bold", "text-anchor": "end"
+          }, cdata.leftName));
+
+          // Hit-Target für linkes Vereinslabel
+          clubHitG.appendChild(createSvgEl("path", {
+            d: dLeadL, fill: "none", stroke: "transparent", "stroke-width": 12
+          }));
+          clubHitG.appendChild(createSvgEl("text", {
+            x: ux(xLeftText), y: uy(y0Lbl) + 4.0, fill: "transparent",
             "font-size": "13", "font-weight": "bold", "text-anchor": "end"
           }, cdata.leftName));
         }
@@ -925,22 +1067,25 @@
             d: dLeadR, fill: "none", stroke: color, "stroke-width": 1.5, "stroke-opacity": 0.75, "stroke-linecap": "round"
           });
           if (isDotted) leadPathR.setAttribute("stroke-dasharray", "1.5, 5.5");
-          clubG.appendChild(leadPathR);
-          clubG.appendChild(createSvgEl("text", {
+          clubVisualG.appendChild(leadPathR);
+          clubVisualG.appendChild(createSvgEl("text", {
             x: ux(xRightText), y: uy(y1Lbl) + 4.0, fill: color,
+            "font-size": "13", "font-weight": "bold", "text-anchor": "start"
+          }, cdata.rightName));
+
+          // Hit-Target für rechtes Vereinslabel
+          clubHitG.appendChild(createSvgEl("path", {
+            d: dLeadR, fill: "none", stroke: "transparent", "stroke-width": 12
+          }));
+          clubHitG.appendChild(createSvgEl("text", {
+            x: ux(xRightText), y: uy(y1Lbl) + 4.0, fill: "transparent",
             "font-size": "13", "font-weight": "bold", "text-anchor": "start"
           }, cdata.rightName));
         }
 
-        // Hover- und Klick-Listener für den gesamten Verein
-        clubG.addEventListener("mouseenter", () => setHoveredClub(cid));
-        clubG.addEventListener("mouseleave", () => setHoveredClub(null));
-        clubG.addEventListener("click", (e) => {
-          e.stopPropagation();
-          if (!wasDragged) togglePinClub(cid);
-        });
-
-        clubsLayer.appendChild(clubG);
+        bindClubInteraction(clubHitG, cid);
+        clubsVisualLayer.appendChild(clubVisualG);
+        clubsHitLayer.appendChild(clubHitG);
       });
 
       // Kollisionsfreie Umbenennungs-Schilder zeichnen
@@ -962,12 +1107,7 @@
           x: xB + 3, y: yB, fill: "#FFF176", "font-size": "10.5", "font-weight": "bold"
         }, ann.text));
 
-        g.addEventListener("mouseenter", () => setHoveredClub(ann.cid));
-        g.addEventListener("mouseleave", () => setHoveredClub(null));
-        g.addEventListener("click", (e) => {
-          e.stopPropagation();
-          if (!wasDragged) togglePinClub(ann.cid);
-        });
+        bindClubInteraction(g, ann.cid);
         badgesLayer.appendChild(g);
       });
     }
@@ -977,6 +1117,13 @@
     // ============================================================================
     let pinnedClubs = [];
     let hoveredClub = null;
+    let lastTouchTime = 0;
+    let lastTouchPinTime = 0;
+
+    function getHeaderHeight() {
+      const hdr = document.getElementById("fixed-header");
+      return hdr ? hdr.offsetHeight : 68;
+    }
 
     function getPrimaryClubId(cid) {
       if (!cid || !CLUBS[cid]) return cid;
@@ -994,15 +1141,23 @@
     }
 
     function setHoveredClub(cid) {
-      hoveredClub = getPrimaryClubId(cid);
+      const nextHover = cid ? getPrimaryClubId(cid) : null;
+      if (hoveredClub === nextHover) return;
+      hoveredClub = nextHover;
       updateHighlightState();
     }
 
     function togglePinClub(cid) {
       const primaryCid = getPrimaryClubId(cid);
+      if (!primaryCid || !CLUBS[primaryCid]) return;
+
       const existingIdx = pinnedClubs.indexOf(primaryCid);
       if (existingIdx !== -1) {
         pinnedClubs.splice(existingIdx, 1);
+        // Sofort auch aus hoveredClub löschen, damit die Abwahl auf allen Geräten unmittelbar sichtbar ist
+        if (hoveredClub === primaryCid) {
+          hoveredClub = null;
+        }
       } else {
         if (pinnedClubs.length >= 3) {
           pinnedClubs.shift();
@@ -1010,7 +1165,7 @@
         pinnedClubs.push(primaryCid);
       }
       updateHighlightState();
-      updatePinnedLeftLabels();
+      renderPinnedLeftLabels();
     }
 
     function updateHighlightState() {
@@ -1023,7 +1178,8 @@
       const hasAnyActive = activeSet.size > 0;
       svg.classList.toggle("has-highlight", hasAnyActive);
 
-      document.querySelectorAll(".club-group").forEach(el => {
+      // Nur die rein visuellen Gruppen (pointer-events: none) werden nach vorne sortiert!
+      document.querySelectorAll("#layer-clubs-visual .club-group").forEach(el => {
         const cid = el.getAttribute("data-cid");
         const isActive = activeSet.has(cid);
         el.classList.toggle("is-active", isActive);
@@ -1047,13 +1203,16 @@
 
       let firstValid = 0;
       while (firstValid < ys.length && ys[firstValid] === null) firstValid++;
-      const lastValid = ys.length - 1;
+      if (firstValid >= ys.length) return 50;
+
+      let lastValid = ys.length - 1;
+      while (lastValid > firstValid && ys[lastValid] === null) lastValid--;
 
       if (unitX <= xs[firstValid]) return ys[firstValid];
       if (unitX >= xs[lastValid]) return ys[lastValid];
 
       for (let i = firstValid; i < lastValid; i++) {
-        if (unitX >= xs[i] && unitX <= xs[i + 1]) {
+        if (ys[i] !== null && ys[i + 1] !== null && unitX >= xs[i] && unitX <= xs[i + 1]) {
           const t = (unitX - xs[i]) / Math.max(xs[i + 1] - xs[i], 0.0001);
           return ys[i] + t * (ys[i + 1] - ys[i]);
         }
@@ -1061,20 +1220,82 @@
       return ys[firstValid];
     }
 
-    function updatePinnedLeftLabels() {
+    // Erstellt die DOM-Elemente der gepinnten Labels NUR bei Änderungen an pinnedClubs
+    function renderPinnedLeftLabels() {
       const rail = document.getElementById("pinned-left-rail");
       rail.innerHTML = "";
       if (pinnedClubs.length === 0) return;
+
+      pinnedClubs.forEach((cid, idx) => {
+        const cdata = CLUBS[cid];
+        const badge = document.createElement("div");
+        badge.className = "pinned-floating-label";
+        badge.setAttribute("data-pinned-cid", cid);
+        badge.style.borderColor = cdata.color;
+
+        badge.innerHTML = `
+          <span class="pin-order">#${idx + 1}</span>
+          <span class="pin-Dot" style="background:${cdata.color}"></span>
+          <span class="pin-name">${cdata.rightName || cdata.name}</span>
+          <span class="pin-close" title="Markierung aufheben">✕</span>
+        `;
+
+        badge.addEventListener("mousedown", (e) => e.stopPropagation());
+        badge.addEventListener("touchstart", (e) => {
+          lastTouchTime = Date.now();
+          e.stopPropagation();
+        }, { passive: true });
+
+        badge.addEventListener("mouseenter", () => {
+          if (Date.now() - lastTouchTime < 800) return;
+          setHoveredClub(cid);
+        });
+        badge.addEventListener("mouseleave", () => {
+          if (Date.now() - lastTouchTime < 800) return;
+          setHoveredClub(null);
+        });
+        badge.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (Date.now() - lastTouchPinTime < 450) return;
+          togglePinClub(cid);
+        });
+        badge.addEventListener("touchend", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          lastTouchTime = Date.now();
+          lastTouchPinTime = Date.now();
+          togglePinClub(cid);
+        }, { passive: false });
+
+        rail.appendChild(badge);
+      });
+
+      positionPinnedLeftLabels();
+    }
+
+    // Aktualisiert beim Verschieben/Zoomen nur die Y-Positionen der bestehenden Label-Elemente
+    function positionPinnedLeftLabels() {
+      if (pinnedClubs.length === 0) return;
+      const rail = document.getElementById("pinned-left-rail");
+      const badges = Array.from(rail.querySelectorAll(".pinned-floating-label"));
+      if (badges.length !== pinnedClubs.length) {
+        renderPinnedLeftLabels();
+        return;
+      }
+
+      const isMobile = window.innerWidth <= 768;
+      const minGapPx = isMobile ? 30 : 38;
+      const minTopPx = getHeaderHeight() + 18;
+      const maxTopPx = window.innerHeight - 24;
 
       const items = pinnedClubs.map((cid, idx) => {
         const unitY = getClubYAtCurrentLeftEdge(cid);
         const svgYPixel = uy(unitY) - Y_MIN_UNIT * SY;
         const screenY = panY + svgYPixel * scale;
-        return { cid, order: idx + 1, targetY: screenY, y: screenY };
+        return { cid, badgeEl: badges[idx], targetY: screenY, y: screenY };
       });
 
       items.sort((a, b) => a.targetY - b.targetY);
-      const minGapPx = 38;
       for (let iter = 0; iter < 20; iter++) {
         for (let i = 1; i < items.length; i++) {
           if (items[i].y - items[i - 1].y < minGapPx) {
@@ -1084,32 +1305,12 @@
           }
         }
         items.forEach(it => {
-          it.y = Math.max(88, Math.min(window.innerHeight - 28, it.y));
+          it.y = Math.max(minTopPx, Math.min(maxTopPx, it.y));
         });
       }
 
       items.forEach(it => {
-        const cdata = CLUBS[it.cid];
-        const badge = document.createElement("div");
-        badge.className = "pinned-floating-label";
-        badge.style.top = `${it.y}px`;
-        badge.style.borderColor = cdata.color;
-
-        badge.innerHTML = `
-          <span class="pin-order">#${it.order}</span>
-          <span class="pin-Dot" style="background:${cdata.color}"></span>
-          <span>${cdata.name}</span>
-          <span class="pin-close" title="Markierung aufheben">✕</span>
-        `;
-
-        badge.addEventListener("mouseenter", () => setHoveredClub(it.cid));
-        badge.addEventListener("mouseleave", () => setHoveredClub(null));
-        badge.addEventListener("click", (e) => {
-          e.stopPropagation();
-          togglePinClub(it.cid);
-        });
-
-        rail.appendChild(badge);
+        it.badgeEl.style.top = `${it.y}px`;
       });
     }
 
@@ -1149,12 +1350,11 @@
     let startPtY = 0;
     let wasDragged = false;
 
-    const HEADER_HEIGHT = 68;
-
     function clampPan() {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      const usableH = vh - HEADER_HEIGHT;
+      const headerH = getHeaderHeight();
+      const usableH = vh - headerH;
 
       const scaledW = SVG_WIDTH * scale;
       const scaledH = SVG_HEIGHT * scale;
@@ -1169,28 +1369,29 @@
 
       if (scaledH > usableH) {
         const minPanY = vh - scaledH;
-        const maxPanY = HEADER_HEIGHT;
+        const maxPanY = headerH;
         panY = Math.max(minPanY, Math.min(maxPanY, panY));
       } else {
-        panY = HEADER_HEIGHT + (usableH - scaledH) * 0.5;
+        panY = headerH + (usableH - scaledH) * 0.5;
       }
     }
 
     function applyTransform() {
       clampPan();
       svg.style.transform = `translate3d(${panX}px, ${panY}px, 0) scale(${scale})`;
-      updatePinnedLeftLabels();
+      positionPinnedLeftLabels();
     }
 
     function resetViewToFit() {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      const usableH = vh - HEADER_HEIGHT;
+      const headerH = getHeaderHeight();
+      const usableH = vh - headerH;
       const scaleX = (vw - 20) / SVG_WIDTH;
       const scaleY = (usableH - 20) / SVG_HEIGHT;
       scale = Math.max(0.25, Math.min(scaleX, scaleY));
       panX = (vw - SVG_WIDTH * scale) * 0.5;
-      panY = HEADER_HEIGHT + (usableH - SVG_HEIGHT * scale) * 0.5;
+      panY = headerH + (usableH - SVG_HEIGHT * scale) * 0.5;
       applyTransform();
     }
 
@@ -1203,6 +1404,7 @@
       applyTransform();
     }
 
+    // A. PC-Maus Drag
     viewport.addEventListener("mousedown", (e) => {
       if (e.button !== 0) return;
       isPointerDown = true;
@@ -1229,6 +1431,7 @@
       viewport.classList.remove("is-dragging");
     });
 
+    // B. Touchpad & Mausrad
     viewport.addEventListener("wheel", (e) => {
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) {
@@ -1241,26 +1444,44 @@
       }
     }, { passive: false });
 
+    // C. Touchscreen (Smartphone & Tablet)
     let prevTouches = [];
+    let touchStartX = 0;
+    let touchStartY = 0;
 
     viewport.addEventListener("touchstart", (e) => {
+      lastTouchTime = Date.now();
+      hideNodeTooltip();
       prevTouches = Array.from(e.touches);
-      wasDragged = false;
-    }, { passive: false });
+      if (prevTouches.length === 1) {
+        touchStartX = prevTouches[0].clientX;
+        touchStartY = prevTouches[0].clientY;
+        wasDragged = false;
+      } else {
+        wasDragged = true;
+      }
+    }, { passive: true });
 
     viewport.addEventListener("touchmove", (e) => {
-      e.preventDefault();
+      lastTouchTime = Date.now();
       const touches = Array.from(e.touches);
 
       if (touches.length === 1 && prevTouches.length === 1) {
+        const totalMove = Math.hypot(touches[0].clientX - touchStartX, touches[0].clientY - touchStartY);
+        if (!wasDragged && totalMove < 8) {
+          // Innerhalb von 8px Finger-Toleranz noch kein Drag -> erlaubt sauberes Antippen (Tap)
+          return;
+        }
+        wasDragged = true;
+        e.preventDefault();
         const dx = touches[0].clientX - prevTouches[0].clientX;
         const dy = touches[0].clientY - prevTouches[0].clientY;
-        if (Math.hypot(dx, dy) > 3) wasDragged = true;
         panX += dx;
         panY += dy;
         applyTransform();
       } else if (touches.length >= 2 && prevTouches.length >= 2) {
         wasDragged = true;
+        e.preventDefault();
         const curMidX = 0.5 * (touches[0].clientX + touches[1].clientX);
         const curMidY = 0.5 * (touches[0].clientY + touches[1].clientY);
         const prevMidX = 0.5 * (prevTouches[0].clientX + prevTouches[1].clientX);
@@ -1281,6 +1502,16 @@
     }, { passive: false });
 
     viewport.addEventListener("touchend", (e) => {
+      lastTouchTime = Date.now();
+      if (!wasDragged && e.changedTouches.length === 1 && e.touches.length === 0) {
+        const t = e.changedTouches[0];
+        const hitEl = document.elementFromPoint(t.clientX, t.clientY);
+        const clubTarget = hitEl ? hitEl.closest("[data-cid]") : null;
+        if (clubTarget) {
+          lastTouchPinTime = Date.now();
+          togglePinClub(clubTarget.getAttribute("data-cid"));
+        }
+      }
       prevTouches = Array.from(e.touches);
     });
 
