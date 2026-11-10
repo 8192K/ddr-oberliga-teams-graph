@@ -67,8 +67,8 @@ const TIER_NAMES = {
 };
 
 const RELEGATION_1991 = {
-    "title": "SONDER-QUALIFIKATION 1990/91: AUFSTIEGSRUNDE ZUR 2. BUNDESLIGA",
-    "subtitle": "Plätze 7–12 der DDR-Oberliga + Staffelsieger A & B der DDR-Liga (Gruppensieger steigen in die 2. BL auf)",
+    "title": "SONDER-QUALIFIKATION 1990/91 ZUR 2. BUNDESLIGA",
+    "subtitle": "Plätze 7–12 der DDR-Oberliga + Staffelsieger A & B der DDR-Liga (Gruppensieger qualifizieren sich für die 2. BL)",
     "groups": [
         {
             "name": "GRUPPE 1",
@@ -76,22 +76,22 @@ const RELEGATION_1991 = {
                 {
                     "rank": 1,
                     "name": "BSV Stahl Brandenburg (OL 8.)",
-                    "info": "10:2 Pkt. ▶ Aufstieg 2. BL",
+                    "info": "9:3 Pkt. ▶ Qualifikation 2. BL",
                     "clubId": "BRB",
                     "promoted": true
                 },
                 {
                     "rank": 2,
-                    "name": "1. FC Union Berlin (DDR-Liga A 1.)",
-                    "info": "7:5 Pkt. ▷ NOFV-Oberliga",
-                    "clubId": "UNION",
+                    "name": "FC Berlin / BFC Dynamo (OL 11.)",
+                    "info": "8:4 Pkt. ▷ NOFV-Oberliga",
+                    "clubId": "BFC",
                     "promoted": false
                 },
                 {
-                    "rank": 3,
-                    "name": "FC Berlin / BFC Dynamo (OL 11.)",
+                    "rank": 2,
+                    "name": "1. FC Union Berlin (DDR-Liga A 1.)",
                     "info": "5:7 Pkt. ▷ NOFV-Oberliga",
-                    "clubId": "BFC",
+                    "clubId": "UNION",
                     "promoted": false
                 },
                 {
@@ -115,16 +115,16 @@ const RELEGATION_1991 = {
                 },
                 {
                     "rank": 2,
-                    "name": "FSV Zwickau (DDR-Liga B 1.)",
-                    "info": "7:5 Pkt. ▷ NOFV-Oberliga",
-                    "clubId": "ZWI",
+                    "name": "EFC Stahl Eisenhüttenstadt (OL 9.)",
+                    "info": "8:4 Pkt. ▷ NOFV-Oberliga",
+                    "clubId": "EFC",
                     "promoted": false
                 },
                 {
                     "rank": 3,
-                    "name": "EFC Stahl Eisenhüttenstadt (OL 9.)",
-                    "info": "5:7 Pkt. ▷ NOFV-Oberliga",
-                    "clubId": "EFC",
+                    "name": "FSV Zwickau (DDR-Liga B 1.)",
+                    "info": "4:8 Pkt. ▷ NOFV-Oberliga",
+                    "clubId": "ZWI",
                     "promoted": false
                 },
                 {
