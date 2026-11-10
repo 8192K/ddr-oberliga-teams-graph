@@ -1104,7 +1104,7 @@ const RAW_CLUBS = [
         "color": "#66BB6A",
         "linestyle": "solid",
         "renames": {"90/91": "→ FC Stahl", "93/94": "→ Riesaer SV", "03/04": "→ TSV / BSG Stahl"},
-        "insolvencies": ["01/02", "02/03"],
+        "insolvencies": ["02/03"],
         "history": [
             {"season": "80/81", "tier": "OL", "rank": 13},
             {"season": "81/82", "tier": "DDR_LIGA", "rank": 1},
