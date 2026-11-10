@@ -92,7 +92,7 @@
     }
 
     /* Dimming & Highlighting OHNE Gruppen-Opacity (verhindert 23 Offscreen-SaveLayer-Buffer in Chrome/Skia) */
-    svg.has-highlight #layer-clubs-visual .club-group.is-active {
+    #layer-clubs-visual .club-group.is-active {
       visibility: hidden;
     }
 
@@ -1219,8 +1219,9 @@
         getLinkedClubIds(hoveredClub).forEach(id => activeSet.add(id));
       }
 
-      const hasAnyActive = activeSet.size > 0;
-      svg.classList.toggle("has-highlight", hasAnyActive);
+      // Transparenz der anderen Teams NUR einschalten, wenn mindestens ein Team permanent gepinnt ist:
+      const hasPinned = pinnedClubs.length > 0;
+      svg.classList.toggle("has-highlight", hasPinned);
 
       // Reines Umschalten von CSS-Klassen ohne jegliche DOM-Umhängung (appendChild entfällt komplett!)
       CLUB_KEYS.forEach(cid => {
