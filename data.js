@@ -485,7 +485,7 @@ const RAW_CLUBS = [
         "color": "#5C6BC0",
         "linestyle": "solid",
         "renames": {"91/92": "→ VfB Leipzig", "04/05": "→ 1. FC Lok"},
-        "insolvencies": ["98/99", "03/04"],
+        "insolvencies": ["99/00", "03/04"],
         "history": [
             {"season": "80/81", "tier": "OL", "rank": 6},
             {"season": "81/82", "tier": "OL", "rank": 3},
