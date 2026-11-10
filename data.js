@@ -83,21 +83,21 @@ const RELEGATION_1991 = {
                 {
                     "rank": 2,
                     "name": "FC Berlin / BFC Dynamo (OL 11.)",
-                    "info": "8:4 Pkt. ▷ NOFV-Oberliga",
+                    "info": "8:4 Pkt. ▷ Oberliga Nordost",
                     "clubId": "BFC",
                     "promoted": false
                 },
                 {
                     "rank": 2,
                     "name": "1. FC Union Berlin (DDR-Liga A 1.)",
-                    "info": "5:7 Pkt. ▷ NOFV-Oberliga",
+                    "info": "5:7 Pkt. ▷ Oberliga Nordost",
                     "clubId": "UNION",
                     "promoted": false
                 },
                 {
                     "rank": 4,
                     "name": "1. FC Magdeburg (OL 10.)",
-                    "info": "2:10 Pkt. ▷ NOFV-Oberliga",
+                    "info": "2:10 Pkt. ▷ Oberliga Nordost",
                     "clubId": "FCM",
                     "promoted": false
                 }
@@ -109,28 +109,28 @@ const RELEGATION_1991 = {
                 {
                     "rank": 1,
                     "name": "1. FC Lokomotive Leipzig (OL 7.)",
-                    "info": "10:2 Pkt. ▶ Aufstieg 2. BL",
+                    "info": "10:2 Pkt. ▶ Qualifikation 2. BL",
                     "clubId": "LOK",
                     "promoted": true
                 },
                 {
                     "rank": 2,
                     "name": "EFC Stahl Eisenhüttenstadt (OL 9.)",
-                    "info": "8:4 Pkt. ▷ NOFV-Oberliga",
+                    "info": "8:4 Pkt. ▷ Oberliga Nordost",
                     "clubId": "EFC",
                     "promoted": false
                 },
                 {
                     "rank": 3,
                     "name": "FSV Zwickau (DDR-Liga B 1.)",
-                    "info": "4:8 Pkt. ▷ NOFV-Oberliga",
+                    "info": "4:8 Pkt. ▷ Oberliga Nordost",
                     "clubId": "ZWI",
                     "promoted": false
                 },
                 {
                     "rank": 4,
                     "name": "FC Sachsen Leipzig (OL 12.)",
-                    "info": "2:10 Pkt. ▷ NOFV-Oberliga",
+                    "info": "2:10 Pkt. ▷ Oberliga Nordost",
                     "clubId": "CHEM",
                     "promoted": false
                 }
