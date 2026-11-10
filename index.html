@@ -74,7 +74,7 @@
 
     /* Dimming & Highlighting */
     svg.has-highlight .club-group {
-      opacity: 0.38; /* Andere Teams bleiben deutlich besser erkennbar (vorher 0.13) */
+      opacity: 0.38;
     }
 
     svg.has-highlight .club-group.is-active {
@@ -82,13 +82,13 @@
     }
 
     svg.has-highlight .club-group.is-active .club-main-path {
-      stroke-width: 5.5px !important; /* Pfad wird kräftig hervorgehoben (vorher 0.42) */
+      stroke-width: 5.5px !important;
       filter: drop-shadow(0px 0px 5px rgba(255, 255, 255, 0.7));
     }
 
     svg.has-highlight .rename-badge,
     svg.has-highlight .insolvency-badge {
-      opacity: 0.38; /* Vorher 0.14 */
+      opacity: 0.38;
       transition: opacity 0.18s ease;
     }
 
@@ -277,7 +277,7 @@
   <!-- Permanenter Header oben -->
   <header id="fixed-header">
     <h1>Erfolgs- und Misserfolgspfade aller 22 DDR-Oberligisten der 1980er-Jahre von 1980/81 bis heute</h1>
-    <p>Platzierungen in DDR-Oberliga, DDR-Liga sowie 1. bis 4. Ligenebene in der BRD | → Umbenennungen | ⚡ Insolvenzen</p>
+    <p>Platzierungen in DDR-Oberliga, DDR-Liga sowie 1. bis 4. Ligenebene in der BRD | → Umbenennungen | ⚡ Insolvenzen (gestrichelt)</p>
   </header>
 
   <!-- Zoom-Buttons rechts oben -->
@@ -294,16 +294,27 @@
     <svg id="chart-svg" xmlns="http://www.w3.org/2000/svg"></svg>
   </div>
 
-  // ============================================================================
-  // 1. ZEITACHSE & KOMPAKTE VEREINSDATEN (ALLE 22 DDR-OBERLIGISTEN + RB LEIPZIG)
-  // ============================================================================
+  <!-- Externe JSON-strukturierte Datendatei laden -->
   <script src="data.js"></script>
 
   <script>
+    // ============================================================================
+    // 1. ZEITACHSE & JSON-VEREINSDATEN AUFBEREITEN
+    // ============================================================================
+    const SEASON_IDS = SEASONS.map(s => (typeof s === "string" ? s : s.id));
+    const SEASON_INDEX_BY_ID = {};
+    const SEASON_SIZES_BY_ID = {};
+
+    SEASONS.forEach((s, idx) => {
+      const id = typeof s === "string" ? s : s.id;
+      SEASON_INDEX_BY_ID[id] = idx;
+      SEASON_SIZES_BY_ID[id] = (typeof s === "object" && s.leagueSizes) ? s.leagueSizes : {};
+    });
+
     const X_COORDS = (() => {
       const x = [];
       let curr = 0.0;
-      for (let i = 0; i < SEASONS.length; i++) {
+      for (let i = 0; i < SEASON_IDS.length; i++) {
         if (i === 0) curr = 0.0;
         else if (i <= 10) curr += 1.55;
         else if (i === 11) curr += 3.10; // Deutlicher Split zwischen DDR (90/91) und DFB (91/92)
@@ -313,40 +324,88 @@
       return x;
     })();
 
-    function parseEntry(token) {
-      if (token === "-") return { tier: "NONE", rank: null, size: null };
-      if (token === "B") return { tier: "DDR_BEZ", rank: null, size: null };
-      if (token === "5" || token === "6" || token === "7") return { tier: "L" + token, rank: null, size: null };
-      if (token.startsWith("O")) return { tier: "OL", rank: parseInt(token.slice(1), 10), size: 14 };
-      if (token.startsWith("D")) {
-        const [r, s] = token.slice(1).split(":");
-        return { tier: "DDR_LIGA", rank: parseInt(r, 10), size: s ? parseInt(s, 10) : 18 };
-      }
-      const parts = token.split(":");
-      const lvl = parts[0];
-      const rank = parseInt(parts[1], 10);
-      const defSize = (lvl === "3") ? 20 : 18;
-      const size = parts[2] ? parseInt(parts[2], 10) : defSize;
-      return { tier: (lvl === "1" || lvl === "2") ? ("BL" + lvl) : ("L" + lvl), rank, size };
+    function resolveSeasonIndex(seasonRef) {
+      if (typeof seasonRef === "number") return seasonRef;
+      if (SEASON_INDEX_BY_ID[seasonRef] !== undefined) return SEASON_INDEX_BY_ID[seasonRef];
+      const parsed = parseInt(seasonRef, 10);
+      return Number.isNaN(parsed) ? -1 : parsed;
     }
 
     const CLUBS = {};
     const CLUB_KEYS = [];
+
     RAW_CLUBS.forEach(rc => {
       CLUB_KEYS.push(rc.id);
+
+      // Umbenennungen auf Saison-Index mappen
+      const renamesByIdx = {};
+      if (rc.renames) {
+        Object.entries(rc.renames).forEach(([sKey, label]) => {
+          const idx = resolveSeasonIndex(sKey);
+          if (idx >= 0) renamesByIdx[idx] = label;
+        });
+      }
+
+      // Insolvenzen auf Saison-Index mappen
+      const insolvenciesByIdx = (rc.insolvencies || [])
+        .map(resolveSeasonIndex)
+        .filter(idx => idx >= 0);
+
+      // Fusion (mergedInto) auf Saison-Index mappen
+      let mergedIntoObj = null;
+      if (rc.mergedInto) {
+        const targetIdx = rc.mergedInto.season !== undefined
+          ? resolveSeasonIndex(rc.mergedInto.season)
+          : rc.mergedInto.seasonIdx;
+        mergedIntoObj = {
+          target: rc.mergedInto.target,
+          seasonIdx: targetIdx
+        };
+      }
+
+      // Historie (Array aus JSON-Objekten { season, tier, rank, size? }) auf alle Saisons mappen
+      const historyBySeasonId = {};
+      if (Array.isArray(rc.history)) {
+        rc.history.forEach(item => {
+          if (item && item.season) {
+            historyBySeasonId[item.season] = item;
+          }
+        });
+      }
+
+      const normalizedHistory = SEASON_IDS.map(sId => {
+        const item = historyBySeasonId[sId];
+        if (!item || !item.tier || item.tier === "NONE") {
+          return { season: sId, tier: "NONE", rank: null, size: null };
+        }
+        const tier = item.tier;
+        const rank = (item.rank !== undefined && item.rank !== null) ? item.rank : null;
+        let size = null;
+        if (rank !== null) {
+          size = (item.size !== undefined && item.size !== null)
+            ? item.size
+            : (SEASON_SIZES_BY_ID[sId][tier] || 18);
+        }
+        return { season: sId, tier, rank, size };
+      });
+
       CLUBS[rc.id] = {
         id: rc.id,
         name: rc.name,
+        leftName: rc.leftName || rc.name,
+        rightName: rc.rightName || rc.name,
         color: rc.color,
-        linestyle: rc.ls,
-        renames: rc.renames,
-        insolvencies: rc.insolvencies,
-        history: rc.hist.split(",").map(parseEntry)
+        linestyle: rc.linestyle || rc.ls || "solid",
+        mergedInto: mergedIntoObj,
+        mergedFrom: rc.mergedFrom || [],
+        renames: renamesByIdx,
+        insolvencies: insolvenciesByIdx,
+        history: normalizedHistory
       };
     });
 
     // ============================================================================
-    // 2. KOORDINATEN-BERECHNUNG (EXAKT WIE IM PYTHON-SKRIPT V3)
+    // 2. KOORDINATEN-BERECHNUNG
     // ============================================================================
     function computeRawY(entry, clubIdx, totalClubs = 23) {
       const { tier, rank, size } = entry;
@@ -424,7 +483,7 @@
       ALL_YS[cid] = CLUBS[cid].history.map(entry => computeRawY(entry, idx, CLUB_KEYS.length));
     });
 
-    for (let sIdx = 0; sIdx < SEASONS.length; sIdx++) {
+    for (let sIdx = 0; sIdx < SEASON_IDS.length; sIdx++) {
       const occupied = {};
       CLUB_KEYS.forEach(cid => {
         const { tier, rank } = CLUBS[cid].history[sIdx];
@@ -450,7 +509,6 @@
     const svg = document.getElementById("chart-svg");
     const NS = "http://www.w3.org/2000/svg";
 
-    // Skalierungsfaktor von Diagramm-Einheiten auf Pixel für gestochen scharfe Typografie
     const SX = 64.5;
     const SY = 14.5;
     const X_MIN_UNIT = -11.5;
@@ -511,14 +569,12 @@
         x: ux(X_COORDS[5]), y: uy(95.3), fill: "#95A5A6", "font-size": "12", "text-anchor": "middle"
       }, "DDR-Bezirksliga / 1990/91 Landesliga (3. Ebene)"));
 
-      // 2. Infobox Relegation 1990/91 zentriert unter der DDR-Bezirksliga
-      // 2. Kompakte Infobox Relegation 1990/91 mittig unter dem DDR-Abschnitt
+      // 2. Kompakte Infobox Relegation 1990/91 mittig unter dem DDR-Abschnitt (aus RELEGATION_1991 in data.js)
       const ddrCenterX = 0.5 * (-0.65 + xEndDdr);
-      const boxW = 10.6; // Deutlich schmaler und exakt zentriert
+      const boxW = 10.6;
       const rx0 = ddrCenterX - 0.5 * boxW;
-      const rx1 = ddrCenterX + 0.5 * boxW;
       const ry0 = 106.0;
-      const ry1 = 132.5; // Kompakter in der Höhe (26.5 statt 49 Einheiten)
+      const ry1 = 132.5;
 
       bgLayer.appendChild(createSvgEl("rect", {
         x: ux(rx0), y: uy(ry0), width: ux(boxW), height: uy(ry1 - ry0),
@@ -527,45 +583,28 @@
 
       bgLayer.appendChild(createSvgEl("text", {
         x: ux(ddrCenterX), y: uy(ry0 + 2.2), fill: "#F8C471", "font-size": "13", "font-weight": "bold", "text-anchor": "middle"
-      }, "SONDER-QUALIFIKATION 1990/91: AUFSTIEGSRUNDE ZUR 2. BUNDESLIGA"));
+      }, RELEGATION_1991.title));
       bgLayer.appendChild(createSvgEl("text", {
         x: ux(ddrCenterX), y: uy(ry0 + 4.3), fill: "#D5D8DC", "font-size": "10.5", "text-anchor": "middle"
-      }, "Plätze 7–12 der DDR-Oberliga + Staffelsieger A & B der DDR-Liga (Gruppensieger steigen in die 2. BL auf)"));
+      }, RELEGATION_1991.subtitle));
 
       bgLayer.appendChild(createSvgEl("line", {
         x1: ux(ddrCenterX), y1: uy(ry0 + 5.8), x2: ux(ddrCenterX), y2: uy(ry1 - 1.4),
         stroke: "#566573", "stroke-dasharray": "4,4", "stroke-width": 1.2
       }));
 
-      const g1X = rx0 + boxW * 0.25;
-      const g2X = rx0 + boxW * 0.75;
-      bgLayer.appendChild(createSvgEl("text", {
-        x: ux(g1X), y: uy(ry0 + 7.0), fill: "#85C1E9", "font-size": "11.5", "font-weight": "bold", "text-anchor": "middle"
-      }, "GRUPPE 1"));
-      bgLayer.appendChild(createSvgEl("text", {
-        x: ux(g2X), y: uy(ry0 + 7.0), fill: "#85C1E9", "font-size": "11.5", "font-weight": "bold", "text-anchor": "middle"
-      }, "GRUPPE 2"));
+      const groupXPositions = [rx0 + boxW * 0.25, rx0 + boxW * 0.75];
+      RELEGATION_1991.groups.forEach((grp, gIdx) => {
+        const gx = groupXPositions[gIdx];
+        bgLayer.appendChild(createSvgEl("text", {
+          x: ux(gx), y: uy(ry0 + 7.0), fill: "#85C1E9", "font-size": "11.5", "font-weight": "bold", "text-anchor": "middle"
+        }, grp.name));
 
-      const relGroups = [
-        [g1X, [
-          [1, "BSV Stahl Brandenburg (OL 8.)", "10:2 Pkt. ▶ Aufstieg 2. BL", "BRB", true],
-          [2, "1. FC Union Berlin (DDR-Liga A 1.)", "7:5 Pkt. ▷ NOFV-Oberliga", "UNION", false],
-          [3, "FC Berlin / BFC Dynamo (OL 11.)", "5:7 Pkt. ▷ NOFV-Oberliga", "BFC", false],
-          [4, "1. FC Magdeburg (OL 10.)", "2:10 Pkt. ▷ NOFV-Oberliga", "FCM", false]
-        ]],
-        [g2X, [
-          [1, "1. FC Lokomotive Leipzig (OL 7.)", "10:2 Pkt. ▶ Aufstieg 2. BL", "LOK", true],
-          [2, "FSV Zwickau (DDR-Liga B 1.)", "7:5 Pkt. ▷ NOFV-Oberliga", "ZWI", false],
-          [3, "EFC Stahl Eisenhüttenstadt (OL 9.)", "5:7 Pkt. ▷ NOFV-Oberliga", "EFC", false],
-          [4, "FC Sachsen Leipzig (OL 12.)", "2:10 Pkt. ▷ NOFV-Oberliga", "CHEM", false]
-        ]]
-      ];
-
-      relGroups.forEach(([gx, rows]) => {
-        rows.forEach(([rank, name, info, cid, isWin], idx) => {
-          const ry = ry0 + 10.2 + idx * 4.5; // Kompakter Zeilenabstand
+        grp.teams.forEach((t, idx) => {
+          const ry = ry0 + 10.2 + idx * 4.5;
           const cx = ux(gx - boxW * 0.21);
           const cy = uy(ry);
+          const cid = t.clubId;
           const itemG = createSvgEl("g", { style: "cursor:pointer" });
           itemG.addEventListener("mouseenter", () => setHoveredClub(cid));
           itemG.addEventListener("mouseleave", () => setHoveredClub(null));
@@ -576,15 +615,15 @@
           }));
           itemG.appendChild(createSvgEl("text", {
             x: cx, y: cy + 3.2, fill: "#fff", "font-size": "9.5", "font-weight": "bold", "text-anchor": "middle"
-          }, String(rank)));
+          }, String(t.rank)));
           itemG.appendChild(createSvgEl("text", {
             x: ux(gx - boxW * 0.175), y: uy(ry - 0.4),
-            fill: isWin ? "#58D68D" : "#ECF0F1", "font-size": "10.8", "font-weight": "bold"
-          }, name));
+            fill: t.promoted ? "#58D68D" : "#ECF0F1", "font-size": "10.8", "font-weight": "bold"
+          }, t.name));
           itemG.appendChild(createSvgEl("text", {
             x: ux(gx - boxW * 0.175), y: uy(ry + 1.15),
             fill: "#ABB2B9", "font-size": "9.5"
-          }, info));
+          }, t.info));
           bgLayer.appendChild(itemG);
         });
       });
@@ -599,9 +638,9 @@
       ghLink.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", "https://github.com/8192K/ddr-oberliga-teams-graph");
 
       const cx = ux(ddrCenterX);
-      const cy = uy(168.2); // Direkt über den Jahreszahlen am unteren Rand
-      const btnW = 430;     // Feste Pixelbreite für gleichmäßige Seitenabstände
-      const btnH = 30;      // Feste Pixelhöhe
+      const cy = uy(168.2);
+      const btnW = 430;
+      const btnH = 30;
 
       ghLink.appendChild(createSvgEl("rect", {
         x: cx - btnW * 0.5,
@@ -621,7 +660,7 @@
         "font-size": "11.5",
         "font-weight": "bold",
         "text-anchor": "middle",
-        "dominant-baseline": "central" // Sorgt für absolut gleichmäßigen Rand oben/unten
+        "dominant-baseline": "central"
       }, "↗ Code & Daten auf GitHub: 8192K/ddr-oberliga-teams-graph"));
 
       bgLayer.appendChild(ghLink);
@@ -653,20 +692,18 @@
           stroke: "#FFFFFF", "stroke-opacity": 0.07, "stroke-width": 1.1
         }));
         // Oben
-        const lblTop = createSvgEl("text", {
+        bgLayer.appendChild(createSvgEl("text", {
           x: ux(xVal), y: uy(-0.6), fill: "#ECF0F1", "font-size": "12", "font-weight": "bold",
           "text-anchor": "start", transform: `rotate(-45 ${ux(xVal)} ${uy(-0.6)})`
-        }, SEASONS[sIdx]);
-        bgLayer.appendChild(lblTop);
+        }, SEASON_IDS[sIdx]));
         // Unten
-        const lblBot = createSvgEl("text", {
+        bgLayer.appendChild(createSvgEl("text", {
           x: ux(xVal), y: uy(174.5), fill: "#ECF0F1", "font-size": "12", "font-weight": "bold",
           "text-anchor": "end", transform: `rotate(-45 ${ux(xVal)} ${uy(174.5)})`
-        }, SEASONS[sIdx]);
-        bgLayer.appendChild(lblBot);
+        }, SEASON_IDS[sIdx]));
       });
 
-      // Gelbe System-Trennlinie 1990/91 -> 1991/92 (etwas höher, damit die oberen Saison-Labels Platz haben)
+      // Gelbe System-Trennlinie 1990/91 -> 1991/92
       const xSplitCenter = 0.5 * (X_COORDS[10] + X_COORDS[11]);
       [-0.22, 0.22].forEach(offset => {
         bgLayer.appendChild(createSvgEl("line", {
@@ -683,7 +720,7 @@
       const rightTargets = {};
       CLUB_KEYS.forEach(cid => {
         if (ALL_YS[cid][0] !== null) leftTargets[cid] = ALL_YS[cid][0];
-        if (ALL_YS[cid][SEASONS.length - 1] !== null) rightTargets[cid] = ALL_YS[cid][SEASONS.length - 1];
+        if (ALL_YS[cid][SEASON_IDS.length - 1] !== null) rightTargets[cid] = ALL_YS[cid][SEASON_IDS.length - 1];
       });
       const leftLabelYs = resolveLabelPositions(leftTargets, 3.6, 1.0, 102.0);
       const rightLabelYs = resolveLabelPositions(rightTargets, 3.6, 1.0, 171.0);
@@ -701,40 +738,94 @@
         const xs = ALL_XS[cid];
         const ys = ALL_YS[cid];
         const color = cdata.color;
-        const isDashed = cdata.linestyle === "--";
+        const isDotted = cdata.linestyle === "dotted" || cdata.linestyle === ":";
 
         const clubG = createSvgEl("g", {
           class: "club-group",
           "data-cid": cid
         });
 
-        // Pfad-Segmente aufbauen
+        // Alle Stützpunkte für den unsichtbaren Hit-Pfad sowie reguläre vs. Insolvenz-Segmente aufbauen
         const validPts = [];
-        for (let i = 0; i < SEASONS.length; i++) {
-          if (ys[i] !== null) validPts.push([ux(xs[i]), uy(ys[i])]);
+        const normalSegments = [];
+        const insolvencySegments = [];
+        const insolvencySet = new Set(cdata.insolvencies);
+
+        let prevIdx = null;
+        for (let i = 0; i < SEASON_IDS.length; i++) {
+          if (ys[i] !== null) {
+            const pt = [ux(xs[i]), uy(ys[i])];
+            validPts.push(pt);
+            if (prevIdx !== null) {
+              const prevPt = [ux(xs[prevIdx]), uy(ys[prevIdx])];
+              const segStr = `M ${prevPt[0].toFixed(1)} ${prevPt[1].toFixed(1)} L ${pt[0].toFixed(1)} ${pt[1].toFixed(1)}`;
+              if (insolvencySet.has(prevIdx)) {
+                insolvencySegments.push(segStr);
+              } else {
+                normalSegments.push(segStr);
+              }
+            }
+            prevIdx = i;
+          }
         }
-        const dStr = validPts.map((pt, idx) => `${idx === 0 ? "M" : "L"} ${pt[0].toFixed(1)} ${pt[1].toFixed(1)}`).join(" ");
+
+        // Falls der Verein fusioniert ist (Chemie Böhlen 1990 -> FC Sachsen Leipzig),
+        // Linie direkt in den Zielknoten des Fusionsvereins weiterführen
+        if (cdata.mergedInto && prevIdx !== null) {
+          const tCid = cdata.mergedInto.target;
+          const tIdx = cdata.mergedInto.seasonIdx;
+          if (ALL_YS[tCid] && ALL_YS[tCid][tIdx] !== null) {
+            const prevPt = [ux(xs[prevIdx]), uy(ys[prevIdx])];
+            const targetPt = [ux(ALL_XS[tCid][tIdx]), uy(ALL_YS[tCid][tIdx])];
+            validPts.push(targetPt);
+            const segStr = `M ${prevPt[0].toFixed(1)} ${prevPt[1].toFixed(1)} L ${targetPt[0].toFixed(1)} ${targetPt[1].toFixed(1)}`;
+            if (insolvencySet.has(prevIdx)) {
+              insolvencySegments.push(segStr);
+            } else {
+              normalSegments.push(segStr);
+            }
+          }
+        }
+
+        const hitDStr = validPts.map((pt, idx) => `${idx === 0 ? "M" : "L"} ${pt[0].toFixed(1)} ${pt[1].toFixed(1)}`).join(" ");
 
         // Unsichtbarer breiter Fangpfad für müheloses Hover & Klick
         clubG.appendChild(createSvgEl("path", {
-          d: dStr,
+          d: hitDStr,
           class: "club-hit-path",
           "stroke-width": 18
         }));
 
-        // Sichtbarer Hauptpfad
-        const mainPath = createSvgEl("path", {
-          d: dStr,
-          class: "club-main-path",
-          stroke: color,
-          "stroke-width": isDashed ? 3.6 : 3.2,
-          "stroke-opacity": 0.94
-        });
-        if (isDashed) mainPath.setAttribute("stroke-dasharray", "9,6");
-        clubG.appendChild(mainPath);
+        // Sichtbarer Hauptpfad (reguläre Segmente: durchgezogen oder bei RB Leipzig gepunktet)
+        if (normalSegments.length > 0) {
+          const mainPath = createSvgEl("path", {
+            d: normalSegments.join(" "),
+            class: "club-main-path",
+            stroke: color,
+            "stroke-width": isDotted ? 3.6 : 3.2,
+            "stroke-opacity": 0.94
+          });
+          if (isDotted) {
+            mainPath.setAttribute("stroke-dasharray", "1.5, 6.5");
+          }
+          clubG.appendChild(mainPath);
+        }
+
+        // Gestrichelte Verbindungslinien zwischen Saisons mit Insolvenz
+        if (insolvencySegments.length > 0) {
+          const insPath = createSvgEl("path", {
+            d: insolvencySegments.join(" "),
+            class: "club-main-path club-insolvency-path",
+            stroke: color,
+            "stroke-width": 3.2,
+            "stroke-opacity": 0.94,
+            "stroke-dasharray": "9, 6"
+          });
+          clubG.appendChild(insPath);
+        }
 
         // Datenpunkte & Platzierungszahlen
-        for (let sIdx = 0; sIdx < SEASONS.length; sIdx++) {
+        for (let sIdx = 0; sIdx < SEASON_IDS.length; sIdx++) {
           const { tier, rank } = cdata.history[sIdx];
           if (tier === "NONE") continue;
           const cx = ux(xs[sIdx]);
@@ -742,7 +833,7 @@
 
           const nodeG = createSvgEl("g");
           if (rankedTiers.has(tier) && rank !== null) {
-            const edgeCol = (cid === "RBL") ? "#C62828" : "#10141D";
+            const edgeCol = (cid === "RBL") ? "#37474F" : "#10141D";
             const txtCol = (cid === "RBL") ? "#10141D" : "#FFFFFF";
             nodeG.appendChild(createSvgEl("circle", {
               cx, cy, r: 9.2, fill: color, stroke: edgeCol, "stroke-width": 1.5
@@ -757,7 +848,7 @@
           }
 
           nodeG.addEventListener("mouseenter", (e) => {
-            showNodeTooltip(e, cdata.name, SEASONS[sIdx], tier, rank, color);
+            showNodeTooltip(e, cdata.name, SEASON_IDS[sIdx], tier, rank, color);
           });
           nodeG.addEventListener("mousemove", moveNodeTooltip);
           nodeG.addEventListener("mouseleave", hideNodeTooltip);
@@ -775,8 +866,8 @@
           }
 
           // Insolvenz-Blitze
-          if (cdata.insolvencies.includes(sIdx)) {
-            const nextIdx = Math.min(sIdx + 1, SEASONS.length - 1);
+          if (insolvencySet.has(sIdx)) {
+            const nextIdx = Math.min(sIdx + 1, SEASON_IDS.length - 1);
             const xMid = ux(0.5 * (xs[sIdx] + xs[nextIdx]));
             const yMid = uy(0.5 * (ys[sIdx] + ys[nextIdx]));
             const insG = createSvgEl("g", { class: "insolvency-badge", "data-cid": cid });
@@ -790,20 +881,20 @@
           }
         }
 
-        // Start-Banner für RB Leipzig (2009/10)
+        // Start-Banner für RB Leipzig (2009/10) in Grau
         if (cid === "RBL") {
           const sx = ux(xs[29]);
           const sy = uy(ys[29]);
           const rblBadge = createSvgEl("g", { class: "rename-badge", "data-cid": "RBL" });
           rblBadge.appendChild(createSvgEl("line", {
-            x1: sx - 15, y1: sy - 42, x2: sx, y2: sy - 6, stroke: "#FFFFFF", "stroke-width": 1.5
+            x1: sx - 15, y1: sy - 42, x2: sx, y2: sy - 6, stroke: color, "stroke-width": 1.5, "stroke-dasharray": "2,4"
           }));
           rblBadge.appendChild(createSvgEl("rect", {
             x: sx - 125, y: sy - 66, width: 220, height: 24, rx: 5,
-            fill: "#C62828", stroke: "#FFFFFF", "stroke-width": 1.3
+            fill: "#263238", stroke: color, "stroke-width": 1.3
           }));
           rblBadge.appendChild(createSvgEl("text", {
-            x: sx - 15, y: sy - 50, fill: "#FFFFFF", "font-size": "11", "font-weight": "bold", "text-anchor": "middle"
+            x: sx - 15, y: sy - 50, fill: "#E0E0E0", "font-size": "11", "font-weight": "bold", "text-anchor": "middle"
           }, "★ Gründung RB Leipzig (2009/10)"));
           badgesLayer.appendChild(rblBadge);
         }
@@ -820,25 +911,25 @@
           clubG.appendChild(createSvgEl("text", {
             x: ux(xLeftText), y: uy(y0Lbl) + 4.0, fill: color,
             "font-size": "13", "font-weight": "bold", "text-anchor": "end"
-          }, cdata.name));
+          }, cdata.leftName));
         }
 
         // Rechtes Vereinslabel (2025/26)
         if (rightTargets[cid] !== undefined) {
-          const lastIdx = SEASONS.length - 1;
+          const lastIdx = SEASON_IDS.length - 1;
           const y1Data = ys[lastIdx];
           const x1Data = xs[lastIdx];
           const y1Lbl = rightLabelYs[cid];
           const dLeadR = `M ${ux(x1Data + 0.18)} ${uy(y1Data)} L ${ux(xRightData + 0.90)} ${uy(y1Lbl)} L ${ux(xRightText - 0.1)} ${uy(y1Lbl)}`;
           const leadPathR = createSvgEl("path", {
-            d: dLeadR, fill: "none", stroke: color, "stroke-width": 1.5, "stroke-opacity": 0.75
+            d: dLeadR, fill: "none", stroke: color, "stroke-width": 1.5, "stroke-opacity": 0.75, "stroke-linecap": "round"
           });
-          if (isDashed) leadPathR.setAttribute("stroke-dasharray", "5,4");
+          if (isDotted) leadPathR.setAttribute("stroke-dasharray", "1.5, 5.5");
           clubG.appendChild(leadPathR);
           clubG.appendChild(createSvgEl("text", {
             x: ux(xRightText), y: uy(y1Lbl) + 4.0, fill: color,
             "font-size": "13", "font-weight": "bold", "text-anchor": "start"
-          }, cdata.name));
+          }, cdata.rightName));
         }
 
         // Hover- und Klick-Listener für den gesamten Verein
@@ -884,33 +975,50 @@
     // ============================================================================
     // 4. INTERAKTIONS-LOGIK: HOVER, MAXIMAL 3 TEAMS ANPINNEN (FIFO) & LEFT-RAIL
     // ============================================================================
-    let pinnedClubs = []; // Maximal 3 Vereins-IDs (FIFO)
+    let pinnedClubs = [];
     let hoveredClub = null;
 
+    function getPrimaryClubId(cid) {
+      if (!cid || !CLUBS[cid]) return cid;
+      return CLUBS[cid].mergedInto ? CLUBS[cid].mergedInto.target : cid;
+    }
+
+    function getLinkedClubIds(cid) {
+      const primary = getPrimaryClubId(cid);
+      if (!primary || !CLUBS[primary]) return cid ? [cid] : [];
+      const linked = [primary];
+      if (CLUBS[primary].mergedFrom && CLUBS[primary].mergedFrom.length > 0) {
+        linked.push(...CLUBS[primary].mergedFrom);
+      }
+      return linked;
+    }
+
     function setHoveredClub(cid) {
-      hoveredClub = cid;
+      hoveredClub = getPrimaryClubId(cid);
       updateHighlightState();
     }
 
     function togglePinClub(cid) {
-      const existingIdx = pinnedClubs.indexOf(cid);
+      const primaryCid = getPrimaryClubId(cid);
+      const existingIdx = pinnedClubs.indexOf(primaryCid);
       if (existingIdx !== -1) {
-        // Bereits angepinnt -> abwählen
         pinnedClubs.splice(existingIdx, 1);
       } else {
-        // Maximal 3 Teams gleichzeitig: beim 4. Klick fliegt das am frühesten angepinnte Team raus
         if (pinnedClubs.length >= 3) {
           pinnedClubs.shift();
         }
-        pinnedClubs.push(cid);
+        pinnedClubs.push(primaryCid);
       }
       updateHighlightState();
       updatePinnedLeftLabels();
     }
 
     function updateHighlightState() {
-      const activeSet = new Set(pinnedClubs);
-      if (hoveredClub) activeSet.add(hoveredClub);
+      const activeSet = new Set();
+      pinnedClubs.forEach(c => getLinkedClubIds(c).forEach(id => activeSet.add(id)));
+      if (hoveredClub) {
+        getLinkedClubIds(hoveredClub).forEach(id => activeSet.add(id));
+      }
 
       const hasAnyActive = activeSet.size > 0;
       svg.classList.toggle("has-highlight", hasAnyActive);
@@ -920,7 +1028,6 @@
         const isActive = activeSet.has(cid);
         el.classList.toggle("is-active", isActive);
         if (isActive) {
-          // Aktive Pfade nach vorne holen, damit sie nicht verdeckt werden
           el.parentNode.appendChild(el);
         }
       });
@@ -929,23 +1036,15 @@
         const cid = el.getAttribute("data-cid");
         el.classList.toggle("is-active", activeSet.has(cid));
       });
-
     }
 
-    /**
-     * Berechnet die Y-Koordinate (in Diagramm-Einheiten) eines Vereins am aktuell
-     * linken Rand des sichtbaren Bildschirmausschnitts, sodass die angepinnten
-     * Vereinsnamen ganz links am Bildschirm kleben und beim Verschieben exakt mitwandern.
-     */
     function getClubYAtCurrentLeftEdge(cid) {
-      // Bildschirm-X = 80px in SVG-Diagramm-Einheiten umrechnen
       const svgXPixel = (80 - panX) / scale + X_MIN_UNIT * SX;
       const unitX = svgXPixel / SX;
 
       const xs = ALL_XS[cid];
       const ys = ALL_YS[cid];
 
-      // Gültige Indizes finden (für RB Leipzig erst ab Index 29)
       let firstValid = 0;
       while (firstValid < ys.length && ys[firstValid] === null) firstValid++;
       const lastValid = ys.length - 1;
@@ -967,7 +1066,6 @@
       rail.innerHTML = "";
       if (pinnedClubs.length === 0) return;
 
-      // Ziel-Bildschirm-Y für jedes angepinnte Team berechnen
       const items = pinnedClubs.map((cid, idx) => {
         const unitY = getClubYAtCurrentLeftEdge(cid);
         const svgYPixel = uy(unitY) - Y_MIN_UNIT * SY;
@@ -975,7 +1073,6 @@
         return { cid, order: idx + 1, targetY: screenY, y: screenY };
       });
 
-      // Überlappungsschutz zwischen den bis zu 3 schwebenden Labels am linken Rand
       items.sort((a, b) => a.targetY - b.targetY);
       const minGapPx = 38;
       for (let iter = 0; iter < 20; iter++) {
@@ -1016,20 +1113,8 @@
       });
     }
 
-    // Tooltip für einzelne Saison-Knoten
+    // Tooltip für einzelne Saison-Knoten (nutzt TIER_NAMES aus data.js)
     const tooltipEl = document.getElementById("node-tooltip");
-    const TIER_NAMES = {
-      OL: "DDR-Oberliga",
-      DDR_LIGA: "DDR-Liga (2. Ebene)",
-      DDR_BEZ: "DDR-Bezirksliga / Landesliga (3. Ebene)",
-      BL1: "1. Bundesliga",
-      BL2: "2. Bundesliga",
-      L3: "3. Liga / Regionalliga / NOFV-Oberliga (3. Ebene)",
-      L4: "4. Ebene (Regionalliga / NOFV-Oberliga / VL)",
-      L5: "5. Ebene (NOFV-Oberliga / Verbandsliga)",
-      L6: "6. Ebene (Verbandsliga / Landesliga)",
-      L7: "7.+ Ebene (Landesklasse bis Kreisklasse)"
-    };
 
     function showNodeTooltip(e, clubName, season, tier, rank, color) {
       tooltipEl.style.display = "block";
@@ -1074,7 +1159,6 @@
       const scaledW = SVG_WIDTH * scale;
       const scaledH = SVG_HEIGHT * scale;
 
-      // Horizontale Begrenzung: Nicht über den linken oder rechten Rand hinausscrollen
       if (scaledW > vw) {
         const minPanX = vw - scaledW;
         const maxPanX = 0;
@@ -1083,7 +1167,6 @@
         panX = (vw - scaledW) * 0.5;
       }
 
-      // Vertikale Begrenzung: Unterhalb des Headers bleiben und nicht über den unteren Rand scrollen
       if (scaledH > usableH) {
         const minPanY = vh - scaledH;
         const maxPanY = HEADER_HEIGHT;
@@ -1120,7 +1203,6 @@
       applyTransform();
     }
 
-    // A. Maus geklickt halten und verschieben
     viewport.addEventListener("mousedown", (e) => {
       if (e.button !== 0) return;
       isPointerDown = true;
@@ -1147,22 +1229,18 @@
       viewport.classList.remove("is-dragging");
     });
 
-    // B. Touchpad (2-Finger-Verschieben & Pinch-Zoom) sowie Mausrad
     viewport.addEventListener("wheel", (e) => {
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) {
-        // Pinch-to-Zoom auf dem Touchpad oder Strg + Mausrad
         const zoomFactor = Math.exp(-e.deltaY * 0.008);
         zoomAtPoint(zoomFactor, e.clientX, e.clientY);
       } else {
-        // Zwei-Finger-Panning auf dem Touchpad / normales Scrollen
         panX -= e.deltaX;
         panY -= e.deltaY;
         applyTransform();
       }
     }, { passive: false });
 
-    // C. Touchscreen (1-Finger & 2-Finger-Verschieben + 2-Finger-Pinch-Zoom)
     let prevTouches = [];
 
     viewport.addEventListener("touchstart", (e) => {
@@ -1188,11 +1266,9 @@
         const prevMidX = 0.5 * (prevTouches[0].clientX + prevTouches[1].clientX);
         const prevMidY = 0.5 * (prevTouches[0].clientY + prevTouches[1].clientY);
 
-        // Zwei-Finger-Verschieben
         panX += (curMidX - prevMidX);
         panY += (curMidY - prevMidY);
 
-        // Gleichzeitiger Zwei-Finger-Pinch-Zoom
         const curDist = Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
         const prevDist = Math.hypot(prevTouches[0].clientX - prevTouches[1].clientX, prevTouches[0].clientY - prevTouches[1].clientY);
         if (prevDist > 10) {
@@ -1208,7 +1284,6 @@
       prevTouches = Array.from(e.touches);
     });
 
-    // Zoom-Buttons oben rechts (zoomt jeweils zur Bildschirmmitte)
     document.getElementById("btn-zoom-in").addEventListener("click", () => {
       zoomAtPoint(1.25, window.innerWidth * 0.5, window.innerHeight * 0.5);
     });
