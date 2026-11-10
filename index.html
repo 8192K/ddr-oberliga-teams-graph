@@ -1436,11 +1436,28 @@
       const vh = window.innerHeight;
       const headerH = getHeaderHeight();
       const usableH = vh - headerH;
-      const scaleX = (vw - 20) / SVG_WIDTH;
-      const scaleY = (usableH - 20) / SVG_HEIGHT;
-      scale = Math.max(0.25, Math.min(scaleX, scaleY));
-      panX = (vw - SVG_WIDTH * scale) * 0.5;
-      panY = headerH + (usableH - SVG_HEIGHT * scale) * 0.5;
+
+      // Zielbereich in Diagramm-Einheiten:
+      // X: Linke Vereinsnamen (-10.8) bis Ende der DDR-Saisons 90/91 (17.5)
+      // Y: Obere Saison-Labels (-4.8) bis Unterkante der DDR-Liga (93.0)
+      const ddrXMin = -10.8;
+      const ddrXMax = 17.5;
+      const ddrYMin = -4.8;
+      const ddrYMax = 93.0;
+
+      const targetW = ux(ddrXMax - ddrXMin);
+      const targetH = uy(ddrYMax - ddrYMin);
+
+      const scaleX = (vw - 20) / targetW;
+      const scaleY = (usableH - 20) / targetH;
+      scale = Math.max(0.25, Math.min(3.2, Math.min(scaleX, scaleY)));
+
+      // Linke obere Ecke des DDR-Bereichs unterhalb des Headers positionieren
+      const offsetX = ux(ddrXMin - X_MIN_UNIT);
+      const offsetY = uy(ddrYMin - Y_MIN_UNIT);
+      panX = 10 - offsetX * scale;
+      panY = headerH + 10 - offsetY * scale;
+
       applyTransform();
     }
 
