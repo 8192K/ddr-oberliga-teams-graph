@@ -945,7 +945,7 @@ const RAW_CLUBS = [
             {"season": "84/85", "tier": "DDR_LIGA", "rank": 5},
             {"season": "85/86", "tier": "DDR_LIGA", "rank": 1},
             {"season": "86/87", "tier": "OL", "rank": 14},
-            {"season": "87/88", "tier": "DDR_LIGA", "rank": 16},
+            {"season": "87/88", "tier": "DDR_LIGA", "rank": 5},
             {"season": "88/89", "tier": "DDR_LIGA", "rank": 1},
             {"season": "89/90", "tier": "OL", "rank": 14},
             {"season": "90/91", "tier": "DDR_LIGA", "rank": 4},
