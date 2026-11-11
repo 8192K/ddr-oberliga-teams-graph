@@ -1,0 +1,373 @@
+:root {
+    --bg-color: #10141D;
+    --panel-bg: rgba(27, 35, 50, 0.94);
+    --border-col: #34495E;
+    --accent-col: #F39C12;
+}
+
+* {
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #ECF0F1;
+    touch-action: none;
+}
+
+/* Haupt-Viewport für Pan & Zoom */
+#viewport {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    cursor: grab;
+}
+
+#viewport.is-dragging {
+    cursor: grabbing;
+}
+
+/* KEIN will-change: transform auf dem riesigen SVG, um GPU-Tile-Eviction (Verschwinden/Flackern) in Chrome/Android zu verhindern */
+#chart-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+    overflow: visible;
+}
+
+/* Visuelle Ebenen der Vereine (pointer-events: none) */
+#layer-clubs-visual,
+#layer-clubs-active {
+    pointer-events: none;
+}
+
+.club-main-path {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Statische Overlay-Klone für aktive Vereine (kein appendChild nötig!) */
+.club-active-clone {
+    display: none;
+}
+
+.club-active-clone.is-active {
+    display: inline;
+}
+
+.club-active-clone .club-main-path {
+    stroke-width: 5.8px !important;
+    stroke-opacity: 1.0 !important;
+}
+
+/* Statische Interaktions-Ebene für Maus & Touch */
+.club-hit-group {
+    cursor: pointer;
+}
+
+.club-hit-path {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 22px;
+    pointer-events: stroke;
+}
+
+/* Dimming & Highlighting OHNE Gruppen-Opacity (verhindert 23 Offscreen-SaveLayer-Buffer in Chrome/Skia) */
+#layer-clubs-visual .club-group.is-active {
+    visibility: hidden;
+}
+
+svg.has-highlight #layer-clubs-visual .club-group path,
+svg.has-highlight #layer-clubs-visual .club-group line {
+    stroke-opacity: 0.28;
+}
+
+svg.has-highlight #layer-clubs-visual .club-group circle {
+    fill-opacity: 0.28;
+    stroke-opacity: 0.28;
+}
+
+svg.has-highlight #layer-clubs-visual .club-group text {
+    fill-opacity: 0.28;
+}
+
+svg.has-highlight .rename-badge line,
+svg.has-highlight .rename-badge rect,
+svg.has-highlight .insolvency-badge circle {
+    fill-opacity: 0.25;
+    stroke-opacity: 0.28;
+}
+
+svg.has-highlight .rename-badge text,
+svg.has-highlight .insolvency-badge text {
+    fill-opacity: 0.28;
+}
+
+svg.has-highlight .rename-badge.is-active line,
+svg.has-highlight .rename-badge.is-active rect,
+svg.has-highlight .insolvency-badge.is-active circle {
+    fill-opacity: 0.95 !important;
+    stroke-opacity: 1.0 !important;
+}
+
+svg.has-highlight .rename-badge.is-active text,
+svg.has-highlight .insolvency-badge.is-active text {
+    fill-opacity: 1.0 !important;
+}
+
+/* Links am Bildschirmrand mitwandernde Labels für angepinnte Teams */
+#pinned-left-rail {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 30;
+}
+
+.pinned-floating-label {
+    position: absolute;
+    left: 14px;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    max-width: calc(100vw - 28px);
+    border-radius: 6px;
+    background: rgba(16, 20, 29, 0.94);
+    border: 2px solid #fff;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.75);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.pinned-floating-label:hover {
+    transform: translateY(-50%) scale(1.03);
+}
+
+.pinned-floating-label .pin-Dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.pinned-floating-label .pin-order {
+    font-size: 11px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    color: #F8C471;
+    flex-shrink: 0;
+}
+
+.pinned-floating-label .pin-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pinned-floating-label .pin-close {
+    margin-left: 4px;
+    font-size: 14px;
+    color: #BDC3C7;
+    line-height: 1;
+    flex-shrink: 0;
+    padding: 2px 4px;
+}
+
+/* Permanenter Header für Überschrift & Unterüberschrift */
+#fixed-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 68px;
+    background: rgba(16, 20, 29, 0.96);
+    border-bottom: 1px solid var(--border-col);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    z-index: 35;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 110px;
+    text-align: center;
+    pointer-events: none;
+}
+
+#fixed-header h1 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: #FFFFFF;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+#fixed-header .title-short {
+    display: none;
+}
+
+#fixed-header p {
+    margin: 3px 0 0 0;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #BDC3C7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+/* Zoom-Buttons oben rechts im Header */
+#hud-bar {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 40;
+    display: flex;
+    gap: 6px;
+}
+
+.hud-btn {
+    width: 36px;
+    height: 36px;
+    background: var(--panel-bg);
+    color: #ECF0F1;
+    border: 1px solid var(--border-col);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    font-size: 20px;
+    font-weight: bold;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.hud-btn:hover {
+    background: #2F4259;
+    border-color: #85C1E9;
+}
+
+/* Mobile & kleine Bildschirme: Linksbündiger Kurz-Header ohne Unterüberschrift & kompakte Labels */
+@media (max-width: 768px) {
+    #fixed-header {
+    height: 50px;
+    align-items: flex-start;
+    text-align: left;
+    padding: 0 90px 0 14px;
+    }
+
+    #fixed-header h1 {
+    font-size: 14.5px;
+    }
+
+    #fixed-header .title-full {
+    display: none;
+    }
+
+    #fixed-header .title-short {
+    display: inline;
+    }
+
+    #fixed-header p {
+    display: none;
+    }
+
+    #hud-bar {
+    top: 9px;
+    right: 10px;
+    gap: 5px;
+    }
+
+    .hud-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+    }
+
+    .pinned-floating-label {
+    left: 8px;
+    padding: 4px 8px;
+    gap: 5px;
+    font-size: 11px;
+    max-width: min(210px, calc(100vw - 20px));
+    }
+
+    .pinned-floating-label .pin-Dot {
+    width: 8px;
+    height: 8px;
+    }
+
+    .pinned-floating-label .pin-order {
+    font-size: 9.5px;
+    padding: 1px 4px;
+    }
+
+    .pinned-floating-label .pin-close {
+    font-size: 12px;
+    margin-left: 2px;
+    }
+}
+
+@media (max-width: 480px) {
+    .pinned-floating-label {
+    max-width: min(170px, calc(100vw - 16px));
+    font-size: 10.5px;
+    padding: 3px 7px;
+    }
+}
+
+/* Kurz-Tooltip beim Hover über einen Datenpunkt */
+#node-tooltip {
+    position: fixed;
+    pointer-events: none;
+    z-index: 50;
+    background: rgba(16, 20, 29, 0.96);
+    border: 1.5px solid #85C1E9;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.65);
+    display: none;
+    white-space: nowrap;
+}
+
+/* GitHub-Link unter der Relegationsbox */
+.github-box-link {
+    cursor: pointer;
+}
+
+.github-box-link:hover rect {
+    stroke: var(--accent-col);
+    fill: #222C3A;
+}
+
+.github-box-link:hover text {
+    fill: #F8C471;
+}
